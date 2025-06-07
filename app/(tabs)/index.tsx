@@ -1,75 +1,230 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
-
-import { HelloWave } from '@/components/HelloWave';
-import ParallaxScrollView from '@/components/ParallaxScrollView';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
+import { MODE_COLORS, UI_CONFIG } from '@/constants/BeepTestConfig';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { router } from 'expo-router';
+import React from 'react';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function HomeScreen() {
+  const insets = useSafeAreaInsets();
+  
+  const navigateToStandardTimer = () => {
+    router.push('/standard-timer');
+  };
+
+  const navigateToPersonalTimer = () => {
+    router.push('/personal-timer');
+  };
+
+  const navigateToHistory = () => {
+    // Placeholder for now
+    console.log('Navigate to history');
+  };
+
+  const navigateToSettings = () => {
+    // Placeholder for now
+    console.log('Navigate to settings');
+  };
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
+    <ThemedView style={styles.container}>
+      <ScrollView 
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+      {/* Header */}
+      <View style={styles.header}>
+        <ThemedText type="title" style={styles.appTitle}>
+          BeepRunner
         </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
+        <ThemedText style={styles.subtitle}>
+          Shuttle Run Timer
         </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+      </View>
+
+      {/* Mode Selection Cards */}
+      <View style={styles.modeContainer}>
+        {/* Personal Beep Test Card */}
+        <Pressable 
+          style={[styles.modeCard, { backgroundColor: `${MODE_COLORS.PERSONAL}15` }]}
+          onPress={navigateToPersonalTimer}
+        >
+          <View style={styles.modeHeader}>
+            <MaterialIcons name="person" size={32} color={MODE_COLORS.PERSONAL} />
+            <ThemedText type="subtitle" style={[styles.modeTitle, { color: MODE_COLORS.PERSONAL }]}>
+              Personal Training
+            </ThemedText>
+          </View>
+          
+          <ThemedText style={styles.modeDescription}>
+            Customized for your space
+          </ThemedText>
+          
+          <View style={styles.featureList}>
+            <View style={styles.featureItem}>
+              <MaterialIcons name="timer" size={16} color={MODE_COLORS.PERSONAL} />
+              <ThemedText style={styles.featureText}>Time-based auto setup</ThemedText>
+            </View>
+            <View style={styles.featureItem}>
+              <MaterialIcons name="tune" size={16} color={MODE_COLORS.PERSONAL} />
+              <ThemedText style={styles.featureText}>Adaptive difficulty</ThemedText>
+            </View>
+          </View>
+          
+          <View style={styles.cardAction}>
+            <ThemedText style={[styles.actionText, { color: MODE_COLORS.PERSONAL }]}>
+              Start Personal Test
+            </ThemedText>
+            <MaterialIcons name="arrow-forward" size={20} color={MODE_COLORS.PERSONAL} />
+          </View>
+        </Pressable>
+
+        {/* Standard Beep Test Card */}
+        <Pressable 
+          style={[styles.modeCard, { backgroundColor: `${MODE_COLORS.STANDARD}15` }]}
+          onPress={navigateToStandardTimer}
+        >
+          <View style={styles.modeHeader}>
+            <MaterialIcons name="straighten" size={32} color={MODE_COLORS.STANDARD} />
+            <ThemedText type="subtitle" style={[styles.modeTitle, { color: MODE_COLORS.STANDARD }]}>
+              Standard Shuttle Run
+            </ThemedText>
+          </View>
+          
+          <ThemedText style={styles.modeDescription}>
+            Official 20m regulation test
+          </ThemedText>
+          
+          <View style={styles.featureList}>
+            <View style={styles.featureItem}>
+              <MaterialIcons name="track-changes" size={16} color={MODE_COLORS.STANDARD} />
+              <ThemedText style={styles.featureText}>Standard beep test</ThemedText>
+            </View>
+            <View style={styles.featureItem}>
+              <MaterialIcons name="verified" size={16} color={MODE_COLORS.STANDARD} />
+              <ThemedText style={styles.featureText}>Consistent measurement</ThemedText>
+            </View>
+          </View>
+          
+          <View style={styles.cardAction}>
+            <ThemedText style={[styles.actionText, { color: MODE_COLORS.STANDARD }]}>
+              Start Standard Test
+            </ThemedText>
+            <MaterialIcons name="arrow-forward" size={20} color={MODE_COLORS.STANDARD} />
+          </View>
+        </Pressable>
+      </View>
+
+      {/* Quick Actions */}
+      <View style={styles.quickActions}>
+        <Pressable style={styles.quickActionButton} onPress={navigateToHistory}>
+          <MaterialIcons name="bar-chart" size={24} color={MODE_COLORS.ACCENT} />
+          <ThemedText style={styles.quickActionText}>Workout History</ThemedText>
+        </Pressable>
+        
+        <Pressable style={styles.quickActionButton} onPress={navigateToSettings}>
+          <MaterialIcons name="settings" size={24} color={MODE_COLORS.ACCENT} />
+          <ThemedText style={styles.quickActionText}>Settings</ThemedText>
+        </Pressable>
+      </View>
+      </ScrollView>
+    </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
+  container: {
+    flex: 1,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingHorizontal: 20,
+    paddingBottom: 120, // Account for tab bar + extra spacing
+  },
+  header: {
+    alignItems: 'center',
+    marginBottom: 40,
+    marginTop: 60, // Increased top margin for tab screen safe area
+  },
+  appTitle: {
+    fontSize: 36,
+    fontWeight: 'bold',
+    marginBottom: 8,
+    paddingTop: 12
+  },
+  subtitle: {
+    fontSize: 18,
+    opacity: 0.7,
+  },
+  modeContainer: {
+    gap: 20,
+    marginBottom: 40,
+  },
+  modeCard: {
+    padding: 24,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.1)',
+  },
+  modeHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 12,
+  },
+  modeTitle: {
+    flex: 1,
+  },
+  modeDescription: {
+    fontSize: 16,
+    marginBottom: 16,
+    opacity: 0.8,
+  },
+  featureList: {
+    gap: 8,
+    marginBottom: 20,
+  },
+  featureItem: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  featureText: {
+    fontSize: 14,
+    opacity: 0.8,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  cardAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0,0,0,0.1)',
+  },
+  actionText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  quickActions: {
+    flexDirection: 'row',
+    gap: 16,
+    justifyContent: 'center',
+  },
+  quickActionButton: {
+    alignItems: 'center',
+    gap: 8,
+    padding: 16,
+    minHeight: UI_CONFIG.MIN_TOUCH_TARGET,
+    minWidth: UI_CONFIG.MIN_TOUCH_TARGET,
+  },
+  quickActionText: {
+    fontSize: 14,
+    textAlign: 'center',
+    opacity: 0.7,
   },
 });
