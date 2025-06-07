@@ -12,6 +12,7 @@ This file tracks the current development status and context for Claude Code sess
 - **Core MVP implementation completed**: Home screen mode selection, timer screens with Material Icons, standard beep test logic with level progression
 - **UI/UX fixes applied**: Fixed scrolling issues, header truncation, timer text sizing, and button text visibility across all screens
 - **Critical layout fixes**: Resolved bottom scroll truncation (added 120px bottom padding) and top timer truncation (removed minHeight conflicts, added proper margins)
+- **Documentation updates**: Added Epic 5 for multi-language and theme switching features to PRD.md and CLAUDE.md
 
 ## Current Tasks
 
@@ -22,6 +23,8 @@ This file tracks the current development status and context for Claude Code sess
 - Audio system implementation with expo-av synthesized beeps (P0 - MVP)
 - Personal mode calibration flow implementation (P0 - MVP)
 - Timer completion feedback and workout summary screens (P0 - MVP)
+- Settings screen with multi-language support (P1 - Post-MVP)
+- Theme switching functionality (dark/light mode) (P1 - Post-MVP)
 
 ## Completed Tasks
 
@@ -30,6 +33,7 @@ This file tracks the current development status and context for Claude Code sess
 - ✅ Set up CLAUDE.md with architecture and development guidelines
 - ✅ Initialized CLAUDE_CONTEXT.md for session tracking
 - ✅ Established development workflow protocol in CLAUDE.md requiring PRD.md reference and context updates
+- ✅ Added Epic 5 specifications for multi-language (Korean/English) and theme switching (dark/light mode) features
 
 ### Project Setup
 - ✅ Initial Expo React Native project structure created
@@ -70,10 +74,17 @@ This file tracks the current development status and context for Claude Code sess
 3. **Enhanced audio**: Real audio files for beeps and voice announcements
 4. **Progress tracking**: Workout history and statistics screens
 
+### Medium Term (Phase 2 - Post-MVP)
+1. **Settings screen implementation**: Create settings UI with proper navigation
+2. **Multi-language support**: Implement i18next with Korean/English translations
+3. **Theme switching**: Add dark/light mode with system preference detection
+4. **Settings persistence**: AsyncStorage integration for user preferences
+
 ### Dependencies & Prerequisites
 - All required dependencies already in package.json (expo-av, expo-sqlite, react-native-chart-kit)
-- PRD.md contains detailed acceptance criteria for all features
-- CLAUDE.md provides technical implementation guidelines
+- New dependencies needed for Epic 5: expo-localization, i18next, react-i18next, @react-native-async-storage/async-storage
+- PRD.md contains detailed acceptance criteria for all features including Epic 5 (multi-language and theme switching)
+- CLAUDE.md provides technical implementation guidelines including theme and i18n system specifications
 
 ---
 

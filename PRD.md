@@ -241,6 +241,109 @@ function adjustDifficulty(currentIntervals: number[], feedback: string): number[
 - [ ] 연속 운동 일수 표시
 - [ ] 개인 최고 기록 하이라이트 (모드별)
 
+### Epic 5: 앱 설정 및 개인화 (App Settings & Personalization)
+**Priority**: P1 (MVP 이후 우선)
+
+#### Story 5.1: 다국어 지원 (Multi-language Support)
+**사용자 스토리**: 사용자가 한국어와 영어 중에서 선택하여 앱을 사용할 수 있다.
+
+**Acceptance Criteria**:
+- [ ] 설정 화면에서 언어 선택 옵션 제공 (한국어/English)
+- [ ] 선택한 언어로 모든 UI 텍스트 표시
+- [ ] 언어 변경 시 즉시 적용 (앱 재시작 불필요)
+- [ ] 시스템 언어에 따른 기본 언어 설정 (한국어/영어만 지원)
+- [ ] 언어별 폰트 최적화 (한글 텍스트 가독성)
+
+**지원 언어**:
+- **한국어**: 기본 개발 언어
+- **English**: 글로벌 사용자 대상
+
+**번역 범위**:
+- 홈 화면 모든 텍스트 (앱 제목, 모드 설명, 기능 설명)
+- 타이머 화면 텍스트 (레벨, 회차, 시간, 버튼)
+- 캘리브레이션 가이드 및 피드백 메시지
+- 설정 화면 및 메뉴 항목
+- 오류 메시지 및 알림
+
+#### Story 5.2: 테마 설정 (Theme Configuration)
+**사용자 스토리**: 사용자가 다크 모드와 라이트 모드 중에서 선택하여 사용할 수 있다.
+
+**Acceptance Criteria**:
+- [ ] 설정 화면에서 테마 선택 옵션 제공 (다크/라이트/시스템 따라가기)
+- [ ] 선택한 테마로 즉시 앱 전체 테마 변경
+- [ ] 시스템 테마에 따른 기본 설정 (시스템 따라가기)
+- [ ] 테마별 최적화된 색상 적용
+- [ ] 모드별 색상 구분 유지 (Personal: 파랑, Standard: 초록)
+
+**테마 옵션**:
+- **라이트 모드**: 밝은 배경, 어두운 텍스트
+- **다크 모드**: 어두운 배경, 밝은 텍스트
+- **시스템 따라가기**: 기기 설정에 따른 자동 변경
+
+**색상 설계**:
+```typescript
+// 다크 모드 색상 팔레트
+const DARK_THEME = {
+  background: '#121212',
+  surface: '#1E1E1E',
+  primary: '#BB86FC',
+  secondary: '#03DAC6',
+  text: '#FFFFFF',
+  textSecondary: '#AAAAAA',
+  border: '#333333',
+  personal: '#3F51B5',    // Personal 모드 (파랑 계열)
+  standard: '#4CAF50',    // Standard 모드 (초록 계열)
+  accent: '#FF9800',      // 강조 색상
+  danger: '#F44336',      // 경고/중단 색상
+};
+
+// 라이트 모드 색상 팔레트  
+const LIGHT_THEME = {
+  background: '#FFFFFF',
+  surface: '#F5F5F5',
+  primary: '#6200EE',
+  secondary: '#018786',
+  text: '#000000',
+  textSecondary: '#666666',
+  border: '#E0E0E0',
+  personal: '#2196F3',    // Personal 모드 (파랑 계열)
+  standard: '#4CAF50',    // Standard 모드 (초록 계열)
+  accent: '#FF9800',      // 강조 색상
+  danger: '#F44336',      // 경고/중단 색상
+};
+```
+
+#### Story 5.3: 설정 화면 구현
+**사용자 스토리**: 사용자가 직관적인 설정 화면에서 앱을 개인화할 수 있다.
+
+**Acceptance Criteria**:
+- [ ] 설정 화면 접근성 (홈 화면 설정 버튼)
+- [ ] 그룹별 설정 구성 (일반, 운동, 앱 정보)
+- [ ] 각 설정 항목에 대한 명확한 설명
+- [ ] 설정 변경 시 즉시 미리보기 제공
+- [ ] 설정값 로컬 저장 및 앱 재시작 시 유지
+
+**설정 화면 구성**:
+```
+┌─────────────────────────────────┐
+│          ⚙️ 설정               │
+├─────────────────────────────────┤
+│ 📱 일반                        │
+│   🌐 언어 설정     한국어 >    │
+│   🎨 테마 설정     다크 모드 >  │
+│                                 │
+│ 🏃 운동 설정                   │
+│   🔊 음성 안내     켜짐 >      │
+│   📳 진동 피드백   켜짐 >      │
+│   🎯 기본 모드     개인 훈련 > │
+│                                 │
+│ ℹ️ 앱 정보                     │
+│   📄 버전 정보     1.0.0       │
+│   📜 오픈소스 라이선스          │
+│   📞 문의하기                  │
+└─────────────────────────────────┘
+```
+
 ---
 
 ## Technical Architecture Overview
@@ -252,6 +355,9 @@ function adjustDifficulty(currentIntervals: number[], feedback: string): number[
 - **백그라운드**: expo-background-task
 - **차트**: react-native-chart-kit
 - **내비게이션**: React Navigation v6
+- **다국어 지원**: expo-localization + i18next
+- **테마 관리**: React Context + AsyncStorage
+- **설정 저장**: AsyncStorage (expo-async-storage)
 
 **오디오 파일 (MVP에서는 Mock)**:
 - `countdown_3.mp3`, `countdown_2.mp3`, `countdown_1.mp3`, `start.mp3`
@@ -299,6 +405,22 @@ CREATE TABLE level_standards (
     rep_end INTEGER NOT NULL,
     base_interval REAL NOT NULL -- 20m 기준 시간
 );
+
+-- 앱 설정 저장
+CREATE TABLE app_settings (
+    id INTEGER PRIMARY KEY,
+    setting_key TEXT NOT NULL UNIQUE,
+    setting_value TEXT NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 기본 설정값
+INSERT INTO app_settings (setting_key, setting_value) VALUES 
+    ('language', 'auto'), -- 'ko', 'en', 'auto'
+    ('theme', 'system'), -- 'light', 'dark', 'system'
+    ('voice_guidance', 'true'),
+    ('haptic_feedback', 'true'),
+    ('default_mode', 'personal'); -- 'personal', 'standard'
 ```
 
 ---
@@ -343,6 +465,85 @@ interface StatsService {
   getProgressData(period: 'week' | 'month', mode?: string): Promise<ProgressData>;
   getPersonalBest(mode?: string): Promise<PersonalBest>;
   getStreakData(): Promise<StreakData>;
+}
+```
+
+#### 설정 관리 API
+```typescript
+interface SettingsService {
+  // 언어 설정
+  getLanguage(): Promise<'ko' | 'en' | 'auto'>;
+  setLanguage(language: 'ko' | 'en' | 'auto'): Promise<void>;
+  
+  // 테마 설정
+  getTheme(): Promise<'light' | 'dark' | 'system'>;
+  setTheme(theme: 'light' | 'dark' | 'system'): Promise<void>;
+  
+  // 운동 설정
+  getVoiceGuidance(): Promise<boolean>;
+  setVoiceGuidance(enabled: boolean): Promise<void>;
+  
+  getHapticFeedback(): Promise<boolean>;
+  setHapticFeedback(enabled: boolean): Promise<void>;
+  
+  getDefaultMode(): Promise<'personal' | 'standard'>;
+  setDefaultMode(mode: 'personal' | 'standard'): Promise<void>;
+  
+  // 전체 설정
+  getAllSettings(): Promise<AppSettings>;
+  resetSettings(): Promise<void>;
+}
+
+interface AppSettings {
+  language: 'ko' | 'en' | 'auto';
+  theme: 'light' | 'dark' | 'system';
+  voiceGuidance: boolean;
+  hapticFeedback: boolean;
+  defaultMode: 'personal' | 'standard';
+}
+```
+
+#### 다국어 지원 API
+```typescript
+interface LocalizationService {
+  getCurrentLanguage(): Promise<'ko' | 'en'>;
+  getSystemLanguage(): 'ko' | 'en';
+  getSupportedLanguages(): string[];
+  
+  // 번역 텍스트 가져오기
+  t(key: string, params?: Record<string, any>): string;
+  
+  // 언어 변경
+  changeLanguage(language: 'ko' | 'en'): Promise<void>;
+}
+
+// 번역 키 예시
+interface TranslationKeys {
+  // 홈 화면
+  'home.title': 'BeepRunner';
+  'home.subtitle': 'Shuttle Run Timer';
+  'home.personal.title': 'Personal Training';
+  'home.personal.description': 'Customized for your space';
+  'home.standard.title': 'Standard Shuttle Run';
+  'home.standard.description': 'Official 20m regulation test';
+  
+  // 타이머 화면
+  'timer.level': 'Level {{level}}';
+  'timer.rep': 'Rep {{current}} of {{total}}';
+  'timer.totalReps': 'Total Reps: {{count}}';
+  'timer.start': 'Start';
+  'timer.pause': 'Pause';
+  'timer.resume': 'Resume';
+  'timer.stop': 'Stop';
+  
+  // 설정 화면
+  'settings.title': 'Settings';
+  'settings.general': 'General';
+  'settings.language': 'Language';
+  'settings.theme': 'Theme';
+  'settings.workout': 'Workout';
+  'settings.voiceGuidance': 'Voice Guidance';
+  'settings.hapticFeedback': 'Haptic Feedback';
 }
 ```
 

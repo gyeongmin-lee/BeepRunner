@@ -72,6 +72,9 @@ const DIFFICULTY_MULTIPLIERS = {
 - **Background**: expo-background-task for continuous timer operation
 - **Charts**: react-native-chart-kit for progress visualization
 - **Navigation**: React Navigation v6 with Expo Router
+- **Internationalization**: expo-localization + i18next for multi-language support
+- **Theme Management**: React Context + AsyncStorage for dark/light mode
+- **Settings Storage**: AsyncStorage (expo-async-storage) for user preferences
 
 ## Architecture
 
@@ -121,18 +124,71 @@ CREATE TABLE calibration_suggestions (
     difficulty_multiplier REAL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+
+-- App settings storage
+CREATE TABLE app_settings (
+    id INTEGER PRIMARY KEY,
+    setting_key TEXT NOT NULL UNIQUE,
+    setting_value TEXT NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
 ```
 
 ### Theme System
 
-Components use `useThemeColor` hook to automatically adapt to light/dark mode. ThemedText and ThemedView components provide consistent styling across the app.
+Enhanced theme system supporting dynamic light/dark mode switching:
+
+```typescript
+// Theme Context structure
+interface ThemeContextType {
+  theme: 'light' | 'dark' | 'system';
+  currentTheme: 'light' | 'dark';
+  setTheme: (theme: 'light' | 'dark' | 'system') => Promise<void>;
+  colors: ThemeColors;
+}
+
+// Color palette for both themes
+interface ThemeColors {
+  background: string;
+  surface: string;
+  primary: string;
+  text: string;
+  textSecondary: string;
+  border: string;
+  personal: string;    // Personal mode color
+  standard: string;    // Standard mode color
+  accent: string;      // Accent color
+  danger: string;      // Danger/stop color
+}
+```
+
+Components use the `useTheme` hook to access current theme colors and the theme switching function.
+
+### Internationalization System
+
+Multi-language support using i18next:
+
+```typescript
+// Language Context structure
+interface LanguageContextType {
+  language: 'ko' | 'en';
+  setLanguage: (language: 'ko' | 'en' | 'auto') => Promise<void>;
+  t: (key: string, params?: Record<string, any>) => string;
+}
+
+// Translation file structure
+// locales/ko.json - Korean translations
+// locales/en.json - English translations
+```
 
 ### Design Guidelines
 
-- **Mode Colors**: Blue (Personal mode), Green (Standard mode)
+- **Mode Colors**: Blue (Personal mode), Green (Standard mode) - consistent across themes
 - **Large touch targets**: Minimum 44x44pt for workout controls
-- **High contrast text**: Readable during exercise
+- **High contrast text**: Readable during exercise in both light and dark themes
 - **Immediate feedback**: Visual/audio response to all actions
+- **Theme-aware components**: All UI elements adapt to current theme
+- **Language-aware layouts**: Text sizing and spacing optimized for Korean and English
 
 ### Configuration
 
@@ -140,6 +196,21 @@ Components use `useThemeColor` hook to automatically adapt to light/dark mode. T
 - TypeScript with strict mode
 - Path mapping configured for `@/*` imports
 - ESLint with Expo flat config
+
+### Required Dependencies
+
+For implementing the new features, ensure these dependencies are added:
+
+```json
+{
+  "dependencies": {
+    "expo-localization": "latest",
+    "i18next": "latest",
+    "react-i18next": "latest",
+    "@react-native-async-storage/async-storage": "latest"
+  }
+}
+```
 
 ## Development Workflow
 
@@ -182,6 +253,7 @@ When performing any development task:
   - Epic 3: Core timer engine
 - **P1 (Post-MVP)**: Enhanced features for later releases
   - Epic 4: Advanced record management and analytics
+  - Epic 5: App settings and personalization (multi-language, theme switching)
 
 ### Context Management
 
