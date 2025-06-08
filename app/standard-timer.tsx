@@ -136,10 +136,10 @@ export default function StandardTimerScreen() {
           // Countdown timer
           return {
             ...prev,
-            timeRemaining: Math.max(0, prev.timeRemaining - 0.1)
+            timeRemaining: Math.max(0, prev.timeRemaining - 0.02)
           };
         });
-      }, 100); // Update every 100ms for smooth countdown
+      }, 20); // Update every 20ms for smooth countdown
     }
     
     return () => {
