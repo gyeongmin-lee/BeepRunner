@@ -5,7 +5,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { MODE_COLORS, UI_CONFIG, CALIBRATION_CONFIG, calculatePersonalIntervals, LevelConfig } from '@/constants/BeepTestConfig';
-import { audioService } from '@/services/AudioService';
+import { useAudio } from '@/components/AudioProvider';
 import { databaseService } from '@/services/DatabaseService';
 
 type PersonalTimerStep = 'calibration' | 'countdown' | 'measuring' | 'results' | 'timer' | 'feedback';
@@ -31,6 +31,7 @@ interface PersonalTimerState {
 }
 
 export default function PersonalTimerScreen() {
+  const audio = useAudio();
   const [currentStep, setCurrentStep] = useState<PersonalTimerStep>('calibration');
   const [calibrationState, setCalibrationState] = useState<CalibrationState>({
     measuredTime: null,
@@ -59,7 +60,7 @@ export default function PersonalTimerScreen() {
   };
 
   const startCalibration = async () => {
-    await audioService.initialize();
+    await audio.initialize();
     setCurrentStep('countdown');
     setCalibrationState(prev => ({ ...prev, isCountingDown: true, countdownNumber: 3 }));
   };
@@ -135,7 +136,7 @@ export default function PersonalTimerScreen() {
 
   // Personal Timer Control Functions
   const startPersonalTimer = async () => {
-    await audioService.playStart();
+    await audio.playStart();
     setTimerState(prev => ({ 
       ...prev, 
       isRunning: true, 
@@ -190,10 +191,10 @@ export default function PersonalTimerScreen() {
       const timer = setInterval(() => {
         setCalibrationState(prev => {
           if (prev.countdownNumber > 1) {
-            audioService.playCountdownBeep();
+            audio.playCountdownBeep();
             return { ...prev, countdownNumber: prev.countdownNumber - 1 };
           } else {
-            audioService.playStart();
+            audio.playStart();
             startMeasurement();
             return prev;
           }
@@ -202,7 +203,7 @@ export default function PersonalTimerScreen() {
 
       return () => clearInterval(timer);
     }
-  }, [currentStep, calibrationState.isCountingDown, calibrationState.countdownNumber]);
+  }, [currentStep, calibrationState.isCountingDown, calibrationState.countdownNumber, audio]);
 
   // Measurement timer effect
   useEffect(() => {
@@ -236,7 +237,7 @@ export default function PersonalTimerScreen() {
             const currentLevelConfig = prev.personalLevels[currentLevelIndex];
             
             // Play beep for completed rep
-            audioService.playBeep();
+            audio.playBeep();
             
             // Check if current level is complete
             if (newRep > currentLevelConfig.reps) {
@@ -246,7 +247,7 @@ export default function PersonalTimerScreen() {
               // Check if all levels are complete
               if (nextLevel > prev.personalLevels.length) {
                 // Workout complete
-                audioService.playComplete();
+                audio.playComplete();
                 // Workout complete - will trigger completePersonalWorkout via effect
                 return {
                   ...prev,
@@ -257,7 +258,7 @@ export default function PersonalTimerScreen() {
               }
               
               // Level up sound
-              audioService.playLevelUp();
+              audio.playLevelUp();
               
               // Start next level
               const nextLevelConfig = prev.personalLevels[nextLevel - 1];
@@ -293,7 +294,7 @@ export default function PersonalTimerScreen() {
         clearInterval(interval);
       }
     };
-  }, [timerState.isRunning, timerState.isPaused, timerState.personalLevels]);
+  }, [timerState.isRunning, timerState.isPaused, timerState.personalLevels, audio]);
 
   // Handle workout completion
   useEffect(() => {
@@ -591,11 +592,8 @@ export default function PersonalTimerScreen() {
         <View style={styles.header}>
           <Pressable onPress={goBack} style={styles.backButton}>
             <MaterialIcons name="arrow-back" size={24} color={MODE_COLORS.PERSONAL} />
-            <ThemedText type="defaultSemiBold" style={{ color: MODE_COLORS.PERSONAL }}>
-              Back
-            </ThemedText>
           </Pressable>
-          <ThemedText type="title" style={[styles.title, { color: MODE_COLORS.PERSONAL }]}>
+          <ThemedText style={[styles.title, { color: MODE_COLORS.PERSONAL }]}>
             Personal Beep Test
           </ThemedText>
         </View>
@@ -643,17 +641,21 @@ const styles = StyleSheet.create({
     marginTop: 60, // Account for modal screen safe area
   },
   backButton: {
-    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     paddingVertical: 8,
-    paddingHorizontal: 12,
-    marginRight: 16,
-    gap: 8,
+    paddingHorizontal: 8,
+    marginRight: 12,
+    width: 40,
+    height: 40,
   },
   title: {
     flex: 1,
     textAlign: 'center',
-    marginRight: 80,
+    marginRight: 40,
+    fontSize: 28,
+    fontWeight: '500',
+    lineHeight: 34,
   },
   stepContainer: {
     flex: 1,
@@ -670,6 +672,8 @@ const styles = StyleSheet.create({
   },
   stepTitle: {
     textAlign: 'center',
+    fontSize: 24,
+    fontWeight: '500',
   },
   instructionContainer: {
     marginBottom: 40,
@@ -694,7 +698,7 @@ const styles = StyleSheet.create({
   },
   guidelineTitle: {
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '500',
   },
   guidelineItem: {
     flexDirection: 'row',
@@ -713,7 +717,7 @@ const styles = StyleSheet.create({
   },
   resultText: {
     fontSize: 20,
-    fontWeight: 'bold',
+    fontWeight: '500',
     marginBottom: 24,
     textAlign: 'center',
   },
@@ -737,7 +741,7 @@ const styles = StyleSheet.create({
   },
   feedbackText: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: '500',
     marginBottom: 4,
   },
   feedbackSubtext: {
@@ -758,7 +762,7 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: '500',
     color: 'white',
   },
   placeholderText: {
@@ -793,7 +797,7 @@ const styles = StyleSheet.create({
   },
   countdownText: {
     fontSize: 80,
-    fontWeight: 'bold',
+    fontWeight: '600',
     color: MODE_COLORS.PERSONAL,
     fontFamily: Platform.select({
       ios: 'System',
@@ -824,7 +828,7 @@ const styles = StyleSheet.create({
   },
   runningTime: {
     fontSize: 64,
-    fontWeight: 'bold',
+    fontWeight: '600',
     color: MODE_COLORS.PERSONAL,
     fontFamily: Platform.select({
       ios: 'System',
@@ -866,7 +870,7 @@ const styles = StyleSheet.create({
   },
   resultValue: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: '500',
     color: MODE_COLORS.PERSONAL,
   },
   confirmationText: {
@@ -890,7 +894,7 @@ const styles = StyleSheet.create({
   },
   secondaryButtonText: {
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '500',
     color: MODE_COLORS.PERSONAL,
   },
   personalTimerDisplay: {
@@ -903,12 +907,12 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   personalLevelText: {
-    fontSize: 36,
-    fontWeight: 'bold',
+    fontSize: 32,
+    fontWeight: '500',
     marginBottom: 8,
     color: MODE_COLORS.PERSONAL,
     textAlign: 'center',
-    lineHeight: 45
+    lineHeight: 40
   },
   personalRepText: {
     fontSize: 20,
@@ -922,7 +926,7 @@ const styles = StyleSheet.create({
   },
   personalCountdownText: {
     fontSize: 56,
-    fontWeight: 'bold',
+    fontWeight: '600',
     marginBottom: 12,
     fontFamily: Platform.select({
       ios: 'System',

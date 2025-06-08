@@ -5,7 +5,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View, Platform } from 'react-native';
-import { audioService } from '@/services/AudioService';
+import { useAudio } from '@/components/AudioProvider';
 import { databaseService } from '@/services/DatabaseService';
 
 interface TimerState {
@@ -19,6 +19,7 @@ interface TimerState {
 }
 
 export default function StandardTimerScreen() {
+  const audio = useAudio();
   const [timerState, setTimerState] = useState<TimerState>({
     currentLevel: 1,
     currentRep: 1,
@@ -32,8 +33,8 @@ export default function StandardTimerScreen() {
   const currentLevelConfig = STANDARD_LEVELS[timerState.currentLevel - 1];
 
   const startTimer = async () => {
-    await audioService.initialize();
-    await audioService.playStart();
+    await audio.initialize();
+    await audio.playStart();
     setTimerState(prev => ({ 
       ...prev, 
       isRunning: true, 
@@ -75,7 +76,7 @@ export default function StandardTimerScreen() {
             const currentLevelIndex = prev.currentLevel - 1;
             
             // Play beep for completed rep
-            audioService.playBeep();
+            audio.playBeep();
             
             // Check if current level is complete
             if (newRep > STANDARD_LEVELS[currentLevelIndex].reps) {
@@ -85,7 +86,7 @@ export default function StandardTimerScreen() {
               // Check if all levels are complete
               if (nextLevel > STANDARD_LEVELS.length) {
                 // Workout complete
-                audioService.playComplete();
+                audio.playComplete();
                 
                 // Save workout to database
                 if (prev.workoutStartTime) {
@@ -111,7 +112,7 @@ export default function StandardTimerScreen() {
               }
               
               // Level up sound
-              audioService.playLevelUp();
+              audio.playLevelUp();
               
               // Start next level
               const nextLevelConfig = STANDARD_LEVELS[nextLevel - 1];
@@ -147,7 +148,7 @@ export default function StandardTimerScreen() {
         clearInterval(interval);
       }
     };
-  }, [timerState.isRunning, timerState.isPaused]);
+  }, [timerState.isRunning, timerState.isPaused, audio]);
 
   return (
     <ThemedView style={styles.container}>
@@ -160,11 +161,8 @@ export default function StandardTimerScreen() {
         <View style={styles.header}>
           <Pressable onPress={goBack} style={styles.backButton}>
             <MaterialIcons name="arrow-back" size={24} color={MODE_COLORS.STANDARD} />
-            <ThemedText type="defaultSemiBold" style={{ color: MODE_COLORS.STANDARD }}>
-              Back
-            </ThemedText>
           </Pressable>
-          <ThemedText type="title" style={[styles.title, { color: MODE_COLORS.STANDARD }]}>
+          <ThemedText style={[styles.title, { color: MODE_COLORS.STANDARD }]}>
             Standard Beep Test
           </ThemedText>
         </View>
@@ -270,17 +268,21 @@ const styles = StyleSheet.create({
     marginTop: 60, // Account for modal screen safe area
   },
   backButton: {
-    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     paddingVertical: 8,
-    paddingHorizontal: 12,
-    marginRight: 16,
-    gap: 8,
+    paddingHorizontal: 8,
+    marginRight: 12,
+    width: 40,
+    height: 40,
   },
   title: {
     flex: 1,
     textAlign: 'center',
-    marginRight: 80, // Offset for back button
+    marginRight: 40, // Reduced offset for smaller back button
+    fontSize: 28,
+    fontWeight: '500',
+    lineHeight: 34,
   },
   timerDisplay: {
     alignItems: 'center',
@@ -291,12 +293,12 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(52, 199, 89, 0.1)',
   },
   levelText: {
-    fontSize: 36,
-    fontWeight: 'bold',
+    fontSize: 32,
+    fontWeight: '500',
     marginBottom: 8,
     color: MODE_COLORS.STANDARD,
     textAlign: 'center',
-    lineHeight: 45
+    lineHeight: 40
   },
   repText: {
     fontSize: 20,
@@ -310,7 +312,7 @@ const styles = StyleSheet.create({
   },
   countdownText: {
     fontSize: 56,
-    fontWeight: 'bold',
+    fontWeight: '600',
     marginBottom: 12,
     fontFamily: Platform.select({
       ios: 'System',
@@ -367,7 +369,7 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '500',
     color: 'white',
     textAlign: 'center',
   },

@@ -4,6 +4,12 @@ This file tracks the current development status and context for Claude Code sess
 
 ## Recent Changes
 
+### 2025-06-08
+- **expo-av → expo-audio migration**: Successfully migrated from deprecated expo-av to expo-audio package
+- **AudioProvider created**: Replaced AudioService.ts with React Context using expo-audio hooks
+- **Audio system modernized**: Updated both timer screens to use useAudio hook instead of audioService calls
+- **Package updates**: Updated to expo@53.0.11 and properly installed expo-audio@0.4.6
+
 ### 2025-06-07
 - **CLAUDE.md created**: Initial documentation file with project overview and development commands
 - **CLAUDE.md updated**: Enhanced with detailed business logic, calibration algorithms, database schema, and design guidelines based on PRD.md
@@ -21,6 +27,7 @@ This file tracks the current development status and context for Claude Code sess
 - No active development tasks currently in progress
 
 ### Pending (Next Phase)
+- **Play beep sound from actual audio file** (P1 - Enhancement) - Replace programmatic beep generation with recorded audio files for better sound quality
 - Background audio operation when app is minimized (P1 - Enhancement)
 - Workout history and statistics screens (P1 - Enhancement)
 - Settings screen with multi-language support (P1 - Post-MVP)
@@ -52,11 +59,13 @@ This file tracks the current development status and context for Claude Code sess
 - ✅ UI/UX fixes: Safe area handling, scrollable content, proper text sizing, responsive layouts
 
 ### Audio System (P0 - MVP)
-- ✅ AudioService.ts with programmatic beep generation using expo-av
+- ✅ AudioService.ts with programmatic beep generation using expo-av (migrated to expo-audio)
+- ✅ AudioProvider.tsx with React Context using expo-audio hooks
 - ✅ WAV audio buffer generation for cross-platform compatibility
 - ✅ Workout beeps, countdown sounds, level-up signals, and completion fanfare
 - ✅ Audio integration in both Standard and Personal timer modes
 - ✅ Audio permission handling for iOS/Android
+- ✅ Migration from deprecated expo-av to expo-audio package
 
 ### Personal Calibration System (P0 - MVP)
 - ✅ Complete calibration flow: instruction → countdown → measurement → results → confirmation
@@ -82,8 +91,11 @@ This file tracks the current development status and context for Claude Code sess
 
 ## Known Issues
 
-### None Currently Identified
-- No technical blockers or critical issues at this time
+### Audio System
+- **Beep sound not working**: Current programmatic beep generation with expo-audio needs investigation or replacement with actual audio files
+
+### None Currently Identified (Non-Audio)
+- No other technical blockers or critical issues at this time
 
 ### Potential Risks (from PRD)
 - **High Priority**: Background audio policies on iOS/Android may change
@@ -120,13 +132,14 @@ This file tracks the current development status and context for Claude Code sess
 4. **Advanced analytics**: Progress tracking, personal best tracking, and statistics
 
 ### Dependencies & Prerequisites
-- ✅ All MVP dependencies installed: expo-av, expo-sqlite
+- ✅ All MVP dependencies installed: expo-audio, expo-sqlite (migrated from expo-av)
 - New dependencies needed for Epic 5: expo-localization, i18next, react-i18next, @react-native-async-storage/async-storage
+- Audio files needed for beep sound replacement: workout beeps, countdown, level-up, completion sounds
 - PRD.md contains detailed acceptance criteria for all features including Epic 5 (multi-language and theme switching)
 - CLAUDE.md provides technical implementation guidelines including theme and i18n system specifications
 
 ---
 
-**Last Updated**: 2025-06-07  
-**MVP Status**: ✅ COMPLETE - All core P0 features implemented
-**Next Review**: After testing and enhancement phase begins
+**Last Updated**: 2025-06-08  
+**MVP Status**: ✅ COMPLETE - All core P0 features implemented (with audio issue noted)
+**Next Review**: After audio file implementation and testing phase begins

@@ -32,15 +32,6 @@ export default function HomeScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-      {/* Header */}
-      <View style={styles.header}>
-        <ThemedText type="title" style={styles.appTitle}>
-          BeepRunner
-        </ThemedText>
-        <ThemedText style={styles.subtitle}>
-          Shuttle Run Timer
-        </ThemedText>
-      </View>
 
       {/* Mode Selection Cards */}
       <View style={styles.modeContainer}>
@@ -142,21 +133,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 20,
     paddingBottom: 120, // Account for tab bar + extra spacing
-  },
-  header: {
-    alignItems: 'center',
-    marginBottom: 40,
-    marginTop: 60, // Increased top margin for tab screen safe area
-  },
-  appTitle: {
-    fontSize: 36,
-    fontWeight: 'bold',
-    marginBottom: 8,
-    paddingTop: 12
-  },
-  subtitle: {
-    fontSize: 18,
-    opacity: 0.7,
+    paddingTop: 60, // Top margin for tab screen safe area
   },
   modeContainer: {
     gap: 20,
