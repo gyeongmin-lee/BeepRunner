@@ -1,19 +1,306 @@
-import React, { useState } from 'react';
-import { StyleSheet, View, Pressable, ScrollView } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { StyleSheet, View, Pressable, ScrollView, Platform } from 'react-native';
 import { router } from 'expo-router';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
-import { MODE_COLORS, UI_CONFIG } from '@/constants/BeepTestConfig';
+import { MODE_COLORS, UI_CONFIG, CALIBRATION_CONFIG, calculatePersonalIntervals, LevelConfig } from '@/constants/BeepTestConfig';
+import { audioService } from '@/services/AudioService';
+import { databaseService } from '@/services/DatabaseService';
 
-type PersonalTimerStep = 'calibration' | 'timer' | 'feedback';
+type PersonalTimerStep = 'calibration' | 'countdown' | 'measuring' | 'results' | 'timer' | 'feedback';
+
+interface CalibrationState {
+  measuredTime: number | null;
+  estimatedDistance: number | null;
+  isCountingDown: boolean;
+  countdownNumber: number;
+  isMeasuring: boolean;
+  measureStartTime: number | null;
+}
+
+interface PersonalTimerState {
+  currentLevel: number;
+  currentRep: number;
+  totalReps: number;
+  isRunning: boolean;
+  isPaused: boolean;
+  timeRemaining: number;
+  personalLevels: LevelConfig[];
+  workoutStartTime: number | null;
+}
 
 export default function PersonalTimerScreen() {
   const [currentStep, setCurrentStep] = useState<PersonalTimerStep>('calibration');
+  const [calibrationState, setCalibrationState] = useState<CalibrationState>({
+    measuredTime: null,
+    estimatedDistance: null,
+    isCountingDown: false,
+    countdownNumber: 3,
+    isMeasuring: false,
+    measureStartTime: null,
+  });
+
+  const [timerState, setTimerState] = useState<PersonalTimerState>({
+    currentLevel: 1,
+    currentRep: 1,
+    totalReps: 0,
+    isRunning: false,
+    isPaused: false,
+    timeRemaining: 0,
+    personalLevels: [],
+    workoutStartTime: null,
+  });
+
+  const [currentMeasurementTime, setCurrentMeasurementTime] = useState<number>(0);
 
   const goBack = () => {
     router.back();
   };
+
+  const startCalibration = async () => {
+    await audioService.initialize();
+    setCurrentStep('countdown');
+    setCalibrationState(prev => ({ ...prev, isCountingDown: true, countdownNumber: 3 }));
+  };
+
+  const startMeasurement = () => {
+    setCurrentStep('measuring');
+    setCurrentMeasurementTime(0);
+    setCalibrationState(prev => ({
+      ...prev,
+      isMeasuring: true,
+      measureStartTime: Date.now(),
+      isCountingDown: false,
+    }));
+  };
+
+  const stopMeasurement = () => {
+    if (calibrationState.measureStartTime) {
+      const measuredTime = (Date.now() - calibrationState.measureStartTime) / 1000;
+      const estimatedDistance = (CALIBRATION_CONFIG.STANDARD_TIME / measuredTime) * CALIBRATION_CONFIG.STANDARD_DISTANCE;
+      
+      setCalibrationState(prev => ({
+        ...prev,
+        measuredTime,
+        estimatedDistance,
+        isMeasuring: false,
+        measureStartTime: null,
+      }));
+      setCurrentStep('results');
+    }
+  };
+
+  const confirmCalibration = async () => {
+    if (calibrationState.measuredTime && calibrationState.estimatedDistance) {
+      try {
+        // Save calibration to database
+        await databaseService.saveCalibration(
+          calibrationState.measuredTime,
+          calibrationState.estimatedDistance
+        );
+
+        const personalLevels = calculatePersonalIntervals(calibrationState.measuredTime);
+        setTimerState(prev => ({
+          ...prev,
+          personalLevels,
+          timeRemaining: personalLevels[0].interval,
+        }));
+        setCurrentStep('timer');
+      } catch (error) {
+        console.warn('Failed to save calibration:', error);
+        // Still proceed to timer even if save fails
+        const personalLevels = calculatePersonalIntervals(calibrationState.measuredTime);
+        setTimerState(prev => ({
+          ...prev,
+          personalLevels,
+          timeRemaining: personalLevels[0].interval,
+        }));
+        setCurrentStep('timer');
+      }
+    }
+  };
+
+  const retryCalibration = () => {
+    setCalibrationState({
+      measuredTime: null,
+      estimatedDistance: null,
+      isCountingDown: false,
+      countdownNumber: 3,
+      isMeasuring: false,
+      measureStartTime: null,
+    });
+    setCurrentStep('calibration');
+  };
+
+  // Personal Timer Control Functions
+  const startPersonalTimer = async () => {
+    await audioService.playStart();
+    setTimerState(prev => ({ 
+      ...prev, 
+      isRunning: true, 
+      isPaused: false,
+      workoutStartTime: Date.now()
+    }));
+  };
+
+  const pausePersonalTimer = () => {
+    setTimerState(prev => ({ ...prev, isPaused: !prev.isPaused }));
+  };
+
+  const stopPersonalTimer = () => {
+    setTimerState(prev => ({
+      ...prev,
+      currentLevel: 1,
+      currentRep: 1,
+      totalReps: 0,
+      isRunning: false,
+      isPaused: false,
+      timeRemaining: prev.personalLevels.length > 0 ? prev.personalLevels[0].interval : 0,
+      workoutStartTime: null,
+    }));
+  };
+
+  const completePersonalWorkout = useCallback(async () => {
+    // Save workout data to database
+    if (timerState.workoutStartTime) {
+      try {
+        const workoutDuration = Math.round((Date.now() - timerState.workoutStartTime) / 60000); // minutes
+        const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+        
+        await databaseService.saveWorkout({
+          date: today,
+          workout_mode: 'personal',
+          max_level: timerState.currentLevel,
+          total_reps: timerState.totalReps,
+          duration_minutes: workoutDuration,
+          notes: `Calibrated for ${calibrationState.estimatedDistance?.toFixed(1)}m space`
+        });
+      } catch (error) {
+        console.warn('Failed to save workout:', error);
+      }
+    }
+    
+    setCurrentStep('feedback');
+  }, [timerState.workoutStartTime, timerState.currentLevel, timerState.totalReps, calibrationState.estimatedDistance]);
+
+  // Countdown effect
+  useEffect(() => {
+    if (currentStep === 'countdown' && calibrationState.isCountingDown) {
+      const timer = setInterval(() => {
+        setCalibrationState(prev => {
+          if (prev.countdownNumber > 1) {
+            audioService.playCountdownBeep();
+            return { ...prev, countdownNumber: prev.countdownNumber - 1 };
+          } else {
+            audioService.playStart();
+            startMeasurement();
+            return prev;
+          }
+        });
+      }, 1000);
+
+      return () => clearInterval(timer);
+    }
+  }, [currentStep, calibrationState.isCountingDown, calibrationState.countdownNumber]);
+
+  // Measurement timer effect
+  useEffect(() => {
+    let interval: ReturnType<typeof setInterval>;
+    
+    if (currentStep === 'measuring' && calibrationState.isMeasuring && calibrationState.measureStartTime) {
+      interval = setInterval(() => {
+        const elapsed = (Date.now() - calibrationState.measureStartTime!) / 1000;
+        setCurrentMeasurementTime(elapsed);
+      }, 100); // Update every 100ms for smooth timer display
+    }
+    
+    return () => {
+      if (interval) {
+        clearInterval(interval);
+      }
+    };
+  }, [currentStep, calibrationState.isMeasuring, calibrationState.measureStartTime]);
+
+  // Personal Timer Logic
+  useEffect(() => {
+    let interval: ReturnType<typeof setInterval>;
+    
+    if (timerState.isRunning && !timerState.isPaused && timerState.personalLevels.length > 0) {
+      interval = setInterval(() => {
+        setTimerState(prev => {
+          // If timer reached 0, advance to next rep/level
+          if (prev.timeRemaining <= 0.1) {
+            const newRep = prev.currentRep + 1;
+            const currentLevelIndex = prev.currentLevel - 1;
+            const currentLevelConfig = prev.personalLevels[currentLevelIndex];
+            
+            // Play beep for completed rep
+            audioService.playBeep();
+            
+            // Check if current level is complete
+            if (newRep > currentLevelConfig.reps) {
+              // Move to next level
+              const nextLevel = prev.currentLevel + 1;
+              
+              // Check if all levels are complete
+              if (nextLevel > prev.personalLevels.length) {
+                // Workout complete
+                audioService.playComplete();
+                // Workout complete - will trigger completePersonalWorkout via effect
+                return {
+                  ...prev,
+                  isRunning: false,
+                  isPaused: false,
+                  timeRemaining: 0
+                };
+              }
+              
+              // Level up sound
+              audioService.playLevelUp();
+              
+              // Start next level
+              const nextLevelConfig = prev.personalLevels[nextLevel - 1];
+              return {
+                ...prev,
+                currentLevel: nextLevel,
+                currentRep: 1,
+                totalReps: prev.totalReps + 1,
+                timeRemaining: nextLevelConfig.interval
+              };
+            }
+            
+            // Continue current level, next rep
+            return {
+              ...prev,
+              currentRep: newRep,
+              totalReps: prev.totalReps + 1,
+              timeRemaining: currentLevelConfig.interval
+            };
+          }
+          
+          // Countdown timer
+          return {
+            ...prev,
+            timeRemaining: Math.max(0, prev.timeRemaining - 0.1)
+          };
+        });
+      }, 100); // Update every 100ms for smooth countdown
+    }
+    
+    return () => {
+      if (interval) {
+        clearInterval(interval);
+      }
+    };
+  }, [timerState.isRunning, timerState.isPaused, timerState.personalLevels]);
+
+  // Handle workout completion
+  useEffect(() => {
+    if (!timerState.isRunning && timerState.workoutStartTime && timerState.timeRemaining === 0 && timerState.personalLevels.length > 0) {
+      completePersonalWorkout();
+    }
+  }, [timerState.isRunning, timerState.workoutStartTime, timerState.timeRemaining, timerState.personalLevels.length, completePersonalWorkout]);
 
   const renderCalibrationStep = () => (
     <View style={styles.stepContainer}>
@@ -57,34 +344,200 @@ export default function PersonalTimerScreen() {
 
       <Pressable 
         style={[styles.button, styles.primaryButton]} 
-        onPress={() => setCurrentStep('timer')}
+        onPress={startCalibration}
       >
         <ThemedText style={styles.buttonText}>Start Calibration</ThemedText>
       </Pressable>
     </View>
   );
 
-  const renderTimerStep = () => (
+  const renderCountdownStep = () => (
     <View style={styles.stepContainer}>
       <View style={styles.titleWithIcon}>
         <MaterialIcons name="timer" size={32} color={MODE_COLORS.PERSONAL} />
         <ThemedText type="title" style={styles.stepTitle}>
-          Personal Beep Test
+          Get Ready!
         </ThemedText>
       </View>
       
-      <ThemedText style={styles.placeholderText}>
-        Timer functionality will be implemented here
-      </ThemedText>
+      <View style={styles.countdownDisplay}>
+        <View style={styles.calibrationCountdownContainer}>
+          <ThemedText style={styles.countdownText}>
+            {calibrationState.countdownNumber}
+          </ThemedText>
+        </View>
+        <ThemedText style={styles.countdownInstructions}>
+          Run to your end point when you hear the start signal
+        </ThemedText>
+      </View>
+    </View>
+  );
+
+  const renderMeasuringStep = () => (
+    <View style={styles.stepContainer}>
+      <View style={styles.titleWithIcon}>
+        <MaterialIcons name="directions-run" size={32} color={MODE_COLORS.PERSONAL} />
+        <ThemedText type="title" style={styles.stepTitle}>
+          Measuring...
+        </ThemedText>
+      </View>
       
+      <View style={styles.timerDisplay}>
+        <View style={styles.measurementTimerContainer}>
+          <ThemedText style={styles.runningTime}>
+            {currentMeasurementTime.toFixed(2)}
+          </ThemedText>
+        </View>
+        <ThemedText style={styles.measureInstructions}>
+          Run at a comfortable pace to your end point
+        </ThemedText>
+      </View>
+
       <Pressable 
         style={[styles.button, styles.primaryButton]} 
-        onPress={() => setCurrentStep('feedback')}
+        onPress={stopMeasurement}
       >
-        <ThemedText style={styles.buttonText}>Complete Workout</ThemedText>
+        <MaterialIcons name="flag" size={24} color="white" style={styles.buttonIcon} />
+        <ThemedText style={styles.buttonText}>I&apos;ve Arrived!</ThemedText>
       </Pressable>
     </View>
   );
+
+  const renderResultsStep = () => (
+    <View style={styles.stepContainer}>
+      <View style={styles.titleWithIcon}>
+        <MaterialIcons name="check-circle" size={32} color={MODE_COLORS.ACCENT} />
+        <ThemedText type="title" style={styles.stepTitle}>
+          Measurement Complete
+        </ThemedText>
+      </View>
+      
+      <View style={styles.resultsContainer}>
+        <View style={styles.resultItem}>
+          <ThemedText style={styles.resultLabel}>Measured Time:</ThemedText>
+          <ThemedText style={styles.resultValue}>
+            {calibrationState.measuredTime?.toFixed(2)}s
+          </ThemedText>
+        </View>
+        
+        <View style={styles.resultItem}>
+          <ThemedText style={styles.resultLabel}>Estimated Distance:</ThemedText>
+          <ThemedText style={styles.resultValue}>
+            ~{calibrationState.estimatedDistance?.toFixed(1)}m
+          </ThemedText>
+        </View>
+        
+        <View style={styles.resultItem}>
+          <ThemedText style={styles.resultLabel}>Distance Ratio:</ThemedText>
+          <ThemedText style={styles.resultValue}>
+            {((calibrationState.estimatedDistance || 20) / 20 * 100).toFixed(0)}% of 20m
+          </ThemedText>
+        </View>
+      </View>
+
+      <ThemedText style={styles.confirmationText}>
+        This setting will customize the beep test intervals for your space. 
+        Ready to start your personal beep test?
+      </ThemedText>
+
+      <View style={styles.buttonRow}>
+        <Pressable 
+          style={[styles.button, styles.secondaryButton]} 
+          onPress={retryCalibration}
+        >
+          <ThemedText style={styles.secondaryButtonText}>Retry</ThemedText>
+        </Pressable>
+        
+        <Pressable 
+          style={[styles.button, styles.primaryButton]} 
+          onPress={confirmCalibration}
+        >
+          <ThemedText style={styles.buttonText}>Confirm</ThemedText>
+        </Pressable>
+      </View>
+    </View>
+  );
+
+  const renderTimerStep = () => {
+    const currentLevelConfig = timerState.personalLevels[timerState.currentLevel - 1];
+    
+    return (
+      <View style={styles.stepContainer}>
+        {/* Main Timer Display */}
+        <View style={styles.personalTimerDisplay}>
+          <ThemedText type="title" style={styles.personalLevelText}>
+            Level {timerState.currentLevel}
+          </ThemedText>
+          
+          <ThemedText style={styles.personalRepText}>
+            Rep {timerState.currentRep} of {currentLevelConfig?.reps || 0}
+          </ThemedText>
+          
+          <View style={styles.personalCountdownContainer}>
+            <ThemedText style={styles.personalCountdownText}>
+              {timerState.timeRemaining.toFixed(2)}
+            </ThemedText>
+          </View>
+          
+          <ThemedText style={styles.personalTotalRepsText}>
+            Total Reps: {timerState.totalReps}
+          </ThemedText>
+
+          {/* Calibration Info */}
+          <View style={styles.calibrationInfo}>
+            <ThemedText style={styles.calibrationInfoText}>
+              Calibrated for {calibrationState.estimatedDistance?.toFixed(1)}m space
+            </ThemedText>
+          </View>
+        </View>
+
+        {/* Progress Bar */}
+        <View style={styles.personalProgressContainer}>
+          <View style={styles.personalProgressBar}>
+            <View 
+              style={[
+                styles.personalProgressFill, 
+                { 
+                  width: `${(timerState.currentRep / (currentLevelConfig?.reps || 1)) * 100}%`,
+                  backgroundColor: MODE_COLORS.PERSONAL
+                }
+              ]} 
+            />
+          </View>
+        </View>
+
+        {/* Control Buttons */}
+        <View style={styles.personalControlsContainer}>
+          {!timerState.isRunning ? (
+            <Pressable 
+              style={[styles.button, styles.primaryButton]} 
+              onPress={startPersonalTimer}
+            >
+              <ThemedText style={styles.buttonText}>Start</ThemedText>
+            </Pressable>
+          ) : (
+            <View style={styles.runningControls}>
+              <Pressable 
+                style={[styles.button, styles.pauseButton]} 
+                onPress={pausePersonalTimer}
+              >
+                <ThemedText style={styles.buttonText}>
+                  {timerState.isPaused ? 'Resume' : 'Pause'}
+                </ThemedText>
+              </Pressable>
+              
+              <Pressable 
+                style={[styles.button, styles.stopButton]} 
+                onPress={stopPersonalTimer}
+              >
+                <ThemedText style={styles.buttonText}>Stop</ThemedText>
+              </Pressable>
+            </View>
+          )}
+        </View>
+      </View>
+    );
+  };
 
   const renderFeedbackStep = () => (
     <View style={styles.stepContainer}>
@@ -149,6 +602,9 @@ export default function PersonalTimerScreen() {
 
         {/* Step Content */}
         {currentStep === 'calibration' && renderCalibrationStep()}
+        {currentStep === 'countdown' && renderCountdownStep()}
+        {currentStep === 'measuring' && renderMeasuringStep()}
+        {currentStep === 'results' && renderResultsStep()}
         {currentStep === 'timer' && renderTimerStep()}
         {currentStep === 'feedback' && renderFeedbackStep()}
 
@@ -325,5 +781,203 @@ const styles = StyleSheet.create({
     fontSize: 16,
     opacity: 0.7,
     textAlign: 'center',
+  },
+  countdownDisplay: {
+    alignItems: 'center',
+    marginBottom: 40,
+  },
+  calibrationCountdownContainer: {
+    width: 120,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  countdownText: {
+    fontSize: 80,
+    fontWeight: 'bold',
+    color: MODE_COLORS.PERSONAL,
+    fontFamily: Platform.select({
+      ios: 'System',
+      android: 'Roboto',
+      default: 'System',
+    }),
+    fontVariant: ['tabular-nums'],
+    textAlign: 'center',
+    lineHeight: 90,
+    marginBottom: 16,
+  },
+  countdownInstructions: {
+    fontSize: 18,
+    textAlign: 'center',
+    opacity: 0.8,
+  },
+  timerDisplay: {
+    alignItems: 'center',
+    marginBottom: 40,
+    padding: 30,
+    backgroundColor: `${MODE_COLORS.PERSONAL}15`,
+    borderRadius: 16,
+  },
+  measurementTimerContainer: {
+    width: 260,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  runningTime: {
+    fontSize: 64,
+    fontWeight: 'bold',
+    color: MODE_COLORS.PERSONAL,
+    fontFamily: Platform.select({
+      ios: 'System',
+      android: 'Roboto',
+      default: 'System',
+    }),
+    fontVariant: ['tabular-nums'],
+    textAlign: 'center',
+    lineHeight: 70,
+    marginBottom: 12,
+  },
+  measureInstructions: {
+    fontSize: 16,
+    textAlign: 'center',
+    opacity: 0.8,
+  },
+  buttonIcon: {
+    marginRight: 8,
+  },
+  resultsContainer: {
+    width: '100%',
+    backgroundColor: `${MODE_COLORS.PERSONAL}10`,
+    borderRadius: 12,
+    padding: 20,
+    marginBottom: 24,
+  },
+  resultItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: `${MODE_COLORS.PERSONAL}20`,
+  },
+  resultLabel: {
+    fontSize: 16,
+    opacity: 0.8,
+  },
+  resultValue: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: MODE_COLORS.PERSONAL,
+  },
+  confirmationText: {
+    fontSize: 16,
+    textAlign: 'center',
+    lineHeight: 22,
+    opacity: 0.8,
+    marginBottom: 32,
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+    maxWidth: 300,
+  },
+  secondaryButton: {
+    backgroundColor: 'transparent',
+    borderWidth: 2,
+    borderColor: MODE_COLORS.PERSONAL,
+    flex: 1,
+  },
+  secondaryButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: MODE_COLORS.PERSONAL,
+  },
+  personalTimerDisplay: {
+    alignItems: 'center',
+    marginBottom: 30,
+    paddingVertical: 40,
+    paddingHorizontal: 20,
+    borderRadius: 16,
+    backgroundColor: 'rgba(0, 122, 255, 0.1)',
+    width: '100%',
+  },
+  personalLevelText: {
+    fontSize: 36,
+    fontWeight: 'bold',
+    marginBottom: 8,
+    color: MODE_COLORS.PERSONAL,
+    textAlign: 'center',
+    lineHeight: 45
+  },
+  personalRepText: {
+    fontSize: 20,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  personalCountdownContainer: {
+    width: 180,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  personalCountdownText: {
+    fontSize: 56,
+    fontWeight: 'bold',
+    marginBottom: 12,
+    fontFamily: Platform.select({
+      ios: 'System',
+      android: 'Roboto',
+      default: 'System',
+    }),
+    fontVariant: ['tabular-nums'],
+    textAlign: 'center',
+    lineHeight: 60
+  },
+  personalTotalRepsText: {
+    fontSize: 16,
+    opacity: 0.7,
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  calibrationInfo: {
+    backgroundColor: `${MODE_COLORS.PERSONAL}20`,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  calibrationInfoText: {
+    fontSize: 14,
+    opacity: 0.8,
+    textAlign: 'center',
+    color: MODE_COLORS.PERSONAL,
+  },
+  personalProgressContainer: {
+    marginBottom: 30,
+    width: '100%',
+  },
+  personalProgressBar: {
+    height: 8,
+    backgroundColor: 'rgba(0, 122, 255, 0.2)',
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  personalProgressFill: {
+    height: '100%',
+    borderRadius: 4,
+  },
+  personalControlsContainer: {
+    width: '100%',
+    maxWidth: 300,
+  },
+  pauseButton: {
+    backgroundColor: MODE_COLORS.ACCENT,
+  },
+  stopButton: {
+    backgroundColor: MODE_COLORS.DANGER,
+  },
+  runningControls: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 16,
   },
 });

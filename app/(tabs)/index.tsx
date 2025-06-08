@@ -5,10 +5,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { router } from 'expo-router';
 import React from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
 export default function HomeScreen() {
-  const insets = useSafeAreaInsets();
   
   const navigateToStandardTimer = () => {
     router.push('/standard-timer');

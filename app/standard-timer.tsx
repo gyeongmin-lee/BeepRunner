@@ -4,7 +4,9 @@ import { MODE_COLORS, STANDARD_LEVELS, UI_CONFIG } from '@/constants/BeepTestCon
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View, Platform } from 'react-native';
+import { audioService } from '@/services/AudioService';
+import { databaseService } from '@/services/DatabaseService';
 
 interface TimerState {
   currentLevel: number;
@@ -13,6 +15,7 @@ interface TimerState {
   isRunning: boolean;
   isPaused: boolean;
   timeRemaining: number;
+  workoutStartTime: number | null;
 }
 
 export default function StandardTimerScreen() {
@@ -22,13 +25,21 @@ export default function StandardTimerScreen() {
     totalReps: 0,
     isRunning: false,
     isPaused: false,
-    timeRemaining: STANDARD_LEVELS[0].interval
+    timeRemaining: STANDARD_LEVELS[0].interval,
+    workoutStartTime: null
   });
 
   const currentLevelConfig = STANDARD_LEVELS[timerState.currentLevel - 1];
 
-  const startTimer = () => {
-    setTimerState(prev => ({ ...prev, isRunning: true, isPaused: false }));
+  const startTimer = async () => {
+    await audioService.initialize();
+    await audioService.playStart();
+    setTimerState(prev => ({ 
+      ...prev, 
+      isRunning: true, 
+      isPaused: false,
+      workoutStartTime: Date.now()
+    }));
   };
 
   const pauseTimer = () => {
@@ -42,7 +53,8 @@ export default function StandardTimerScreen() {
       totalReps: 0,
       isRunning: false,
       isPaused: false,
-      timeRemaining: STANDARD_LEVELS[0].interval
+      timeRemaining: STANDARD_LEVELS[0].interval,
+      workoutStartTime: null
     });
   };
 
@@ -62,6 +74,9 @@ export default function StandardTimerScreen() {
             const newRep = prev.currentRep + 1;
             const currentLevelIndex = prev.currentLevel - 1;
             
+            // Play beep for completed rep
+            audioService.playBeep();
+            
             // Check if current level is complete
             if (newRep > STANDARD_LEVELS[currentLevelIndex].reps) {
               // Move to next level
@@ -70,6 +85,23 @@ export default function StandardTimerScreen() {
               // Check if all levels are complete
               if (nextLevel > STANDARD_LEVELS.length) {
                 // Workout complete
+                audioService.playComplete();
+                
+                // Save workout to database
+                if (prev.workoutStartTime) {
+                  const workoutDuration = Math.round((Date.now() - prev.workoutStartTime) / 60000);
+                  const today = new Date().toISOString().split('T')[0];
+                  
+                  databaseService.saveWorkout({
+                    date: today,
+                    workout_mode: 'standard',
+                    max_level: prev.currentLevel,
+                    total_reps: prev.totalReps + 1, // Include the final rep
+                    duration_minutes: workoutDuration,
+                    notes: 'Standard 20m beep test completed'
+                  }).catch(error => console.warn('Failed to save workout:', error));
+                }
+                
                 return {
                   ...prev,
                   isRunning: false,
@@ -77,6 +109,9 @@ export default function StandardTimerScreen() {
                   timeRemaining: 0
                 };
               }
+              
+              // Level up sound
+              audioService.playLevelUp();
               
               // Start next level
               const nextLevelConfig = STANDARD_LEVELS[nextLevel - 1];
@@ -144,9 +179,11 @@ export default function StandardTimerScreen() {
           Rep {timerState.currentRep} of {currentLevelConfig?.reps || 0}
         </ThemedText>
         
-        <ThemedText style={styles.countdownText}>
-          {timerState.timeRemaining.toFixed(1)}s
-        </ThemedText>
+        <View style={styles.countdownContainer}>
+          <ThemedText style={styles.countdownText}>
+            {timerState.timeRemaining.toFixed(2)}
+          </ThemedText>
+        </View>
         
         <ThemedText style={styles.totalRepsText}>
           Total Reps: {timerState.totalReps}
@@ -266,11 +303,21 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     textAlign: 'center',
   },
+  countdownContainer: {
+    width: 180,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   countdownText: {
     fontSize: 56,
     fontWeight: 'bold',
     marginBottom: 12,
-    fontFamily: 'monospace',
+    fontFamily: Platform.select({
+      ios: 'System',
+      android: 'Roboto',
+      default: 'System',
+    }),
+    fontVariant: ['tabular-nums'],
     textAlign: 'center',
     lineHeight: 60
   },
