@@ -222,6 +222,8 @@ For implementing the new features, ensure these dependencies are added:
 
 ### Task Execution Protocol
 
+**CRITICAL: When prompted, do not begin coding until you have 95% confidence that you know what to build. Ask follow-up questions until you have 95% confidence.**
+
 When performing any development task:
 
 1. **Before Starting**:

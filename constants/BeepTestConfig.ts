@@ -3,6 +3,8 @@
  * Contains all standard level configurations and constants for beep tests
  */
 
+import { MODE_COLORS_MUTED } from './Colors';
+
 export interface LevelConfig {
   level: number;
   reps: number;
@@ -62,12 +64,16 @@ export const UI_CONFIG = {
   TIMER_UPDATE_MS: 100, // timer display update frequency
 };
 
-// Mode Colors (from PRD design guidelines)
+// Mode Colors - Updated to muted palette for modern design
 export const MODE_COLORS = {
-  PERSONAL: '#007AFF',  // Blue for Personal mode
-  STANDARD: '#34C759',  // Green for Standard mode
-  ACCENT: '#FF9500',    // Orange for highlights
-  DANGER: '#FF3B30',    // Red for stop/danger
+  PERSONAL: MODE_COLORS_MUTED.PERSONAL,        // Muted blue #6B8FB5
+  PERSONAL_LIGHT: MODE_COLORS_MUTED.PERSONAL_LIGHT, // #A8C1E0
+  PERSONAL_TINT: MODE_COLORS_MUTED.PERSONAL_TINT,   // #F0F4F8
+  STANDARD: MODE_COLORS_MUTED.STANDARD,        // Muted green #7BA05B
+  STANDARD_LIGHT: MODE_COLORS_MUTED.STANDARD_LIGHT, // #A8C487
+  STANDARD_TINT: MODE_COLORS_MUTED.STANDARD_TINT,   // #F4F7F0
+  ACCENT: MODE_COLORS_MUTED.ACCENT,            // Muted orange #E17B47
+  DANGER: MODE_COLORS_MUTED.DANGER,            // Muted red #D14343
 };
 
 /**

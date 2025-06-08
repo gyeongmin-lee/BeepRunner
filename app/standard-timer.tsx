@@ -4,7 +4,7 @@ import { MODE_COLORS, STANDARD_LEVELS, UI_CONFIG } from '@/constants/BeepTestCon
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View, Platform } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useAudio } from '@/components/AudioProvider';
 import { databaseService } from '@/services/DatabaseService';
 
@@ -16,6 +16,8 @@ interface TimerState {
   isPaused: boolean;
   timeRemaining: number;
   workoutStartTime: number | null;
+  repStartTime: number | null;
+  pausedTime: number;
 }
 
 export default function StandardTimerScreen() {
@@ -27,7 +29,9 @@ export default function StandardTimerScreen() {
     isRunning: false,
     isPaused: false,
     timeRemaining: STANDARD_LEVELS[0].interval,
-    workoutStartTime: null
+    workoutStartTime: null,
+    repStartTime: null,
+    pausedTime: 0
   });
 
   const currentLevelConfig = STANDARD_LEVELS[timerState.currentLevel - 1];
@@ -35,16 +39,33 @@ export default function StandardTimerScreen() {
   const startTimer = async () => {
     await audio.initialize();
     await audio.playStart();
+    const now = Date.now();
     setTimerState(prev => ({ 
       ...prev, 
       isRunning: true, 
       isPaused: false,
-      workoutStartTime: Date.now()
+      workoutStartTime: now,
+      repStartTime: now,
+      pausedTime: 0
     }));
   };
 
   const pauseTimer = () => {
-    setTimerState(prev => ({ ...prev, isPaused: !prev.isPaused }));
+    setTimerState(prev => {
+      if (prev.isPaused) {
+        // Resuming: reset rep start time to account for pause duration
+        const pauseDuration = Date.now() - (prev.repStartTime || Date.now());
+        return { 
+          ...prev, 
+          isPaused: false,
+          pausedTime: prev.pausedTime + pauseDuration,
+          repStartTime: Date.now()
+        };
+      } else {
+        // Pausing: track when pause started
+        return { ...prev, isPaused: true };
+      }
+    });
   };
 
   const stopTimer = () => {
@@ -55,7 +76,9 @@ export default function StandardTimerScreen() {
       isRunning: false,
       isPaused: false,
       timeRemaining: STANDARD_LEVELS[0].interval,
-      workoutStartTime: null
+      workoutStartTime: null,
+      repStartTime: null,
+      pausedTime: 0
     });
   };
 
@@ -70,8 +93,16 @@ export default function StandardTimerScreen() {
     if (timerState.isRunning && !timerState.isPaused) {
       interval = setInterval(() => {
         setTimerState(prev => {
+          if (!prev.repStartTime) return prev;
+          
+          // Calculate actual elapsed time since rep started
+          const now = Date.now();
+          const elapsedTime = (now - prev.repStartTime) / 1000; // Convert to seconds
+          const currentLevelConfig = STANDARD_LEVELS[prev.currentLevel - 1];
+          const timeRemaining = Math.max(0, currentLevelConfig.interval - elapsedTime);
+          
           // If timer reached 0, advance to next rep/level
-          if (prev.timeRemaining <= 0.1) {
+          if (timeRemaining <= 0) {
             const newRep = prev.currentRep + 1;
             const currentLevelIndex = prev.currentLevel - 1;
             
@@ -107,7 +138,8 @@ export default function StandardTimerScreen() {
                   ...prev,
                   isRunning: false,
                   isPaused: false,
-                  timeRemaining: 0
+                  timeRemaining: 0,
+                  repStartTime: null
                 };
               }
               
@@ -121,7 +153,8 @@ export default function StandardTimerScreen() {
                 currentLevel: nextLevel,
                 currentRep: 1,
                 totalReps: prev.totalReps + 1,
-                timeRemaining: nextLevelConfig.interval
+                timeRemaining: nextLevelConfig.interval,
+                repStartTime: now // Start timing for new level
               };
             }
             
@@ -130,14 +163,15 @@ export default function StandardTimerScreen() {
               ...prev,
               currentRep: newRep,
               totalReps: prev.totalReps + 1,
-              timeRemaining: STANDARD_LEVELS[currentLevelIndex].interval
+              timeRemaining: currentLevelConfig.interval,
+              repStartTime: now // Start timing for new rep
             };
           }
           
-          // Countdown timer
+          // Update display with accurate time remaining
           return {
             ...prev,
-            timeRemaining: Math.max(0, prev.timeRemaining - 0.02)
+            timeRemaining
           };
         });
       }, 20); // Update every 20ms for smooth countdown
@@ -162,28 +196,28 @@ export default function StandardTimerScreen() {
           <Pressable onPress={goBack} style={styles.backButton}>
             <MaterialIcons name="arrow-back" size={24} color={MODE_COLORS.STANDARD} />
           </Pressable>
-          <ThemedText style={[styles.title, { color: MODE_COLORS.STANDARD }]}>
+          <ThemedText type="title" style={[styles.title, { color: MODE_COLORS.STANDARD }]}>
             Standard Beep Test
           </ThemedText>
         </View>
 
       {/* Main Timer Display */}
       <View style={styles.timerDisplay}>
-        <ThemedText type="title" style={styles.levelText}>
+        <ThemedText type="timerLarge" style={styles.levelText}>
           Level {timerState.currentLevel}
         </ThemedText>
         
-        <ThemedText style={styles.repText}>
+        <ThemedText type="headline" style={styles.repText}>
           Rep {timerState.currentRep} of {currentLevelConfig?.reps || 0}
         </ThemedText>
         
         <View style={styles.countdownContainer}>
-          <ThemedText style={styles.countdownText}>
+          <ThemedText type="display" style={styles.countdownText}>
             {timerState.timeRemaining.toFixed(2)}
           </ThemedText>
         </View>
         
-        <ThemedText style={styles.totalRepsText}>
+        <ThemedText type="bodyLarge" style={styles.totalRepsText}>
           Total Reps: {timerState.totalReps}
         </ThemedText>
       </View>
@@ -201,6 +235,9 @@ export default function StandardTimerScreen() {
             ]} 
           />
         </View>
+        <ThemedText type="caption" style={styles.progressText}>
+          {timerState.currentRep} / {currentLevelConfig?.reps || 0} reps
+        </ThemedText>
       </View>
 
       {/* Control Buttons */}
@@ -210,7 +247,7 @@ export default function StandardTimerScreen() {
             style={[styles.button, styles.startButton]} 
             onPress={startTimer}
           >
-            <ThemedText style={styles.buttonText}>Start</ThemedText>
+            <ThemedText type="button" style={styles.buttonText}>Start</ThemedText>
           </Pressable>
         ) : (
           <View style={styles.runningControls}>
@@ -218,7 +255,7 @@ export default function StandardTimerScreen() {
               style={[styles.button, styles.pauseButton]} 
               onPress={pauseTimer}
             >
-              <ThemedText style={styles.buttonText}>
+              <ThemedText type="button" style={styles.buttonText}>
                 {timerState.isPaused ? 'Resume' : 'Pause'}
               </ThemedText>
             </Pressable>
@@ -227,7 +264,7 @@ export default function StandardTimerScreen() {
               style={[styles.button, styles.stopButton]} 
               onPress={stopTimer}
             >
-              <ThemedText style={styles.buttonText}>Stop</ThemedText>
+              <ThemedText type="button" style={styles.buttonText}>Stop</ThemedText>
             </Pressable>
           </View>
         )}
@@ -237,11 +274,11 @@ export default function StandardTimerScreen() {
       <View style={styles.infoContainer}>
         <View style={styles.infoItem}>
           <MaterialIcons name="straighten" size={16} color={MODE_COLORS.STANDARD} />
-          <ThemedText style={styles.infoText}>Standard 20m shuttle run</ThemedText>
+          <ThemedText type="caption" style={styles.infoText}>Standard 20m shuttle run</ThemedText>
         </View>
         <View style={styles.infoItem}>
           <MaterialIcons name="track-changes" size={16} color={MODE_COLORS.STANDARD} />
-          <ThemedText style={styles.infoText}>9 levels • Fixed intervals</ThemedText>
+          <ThemedText type="caption" style={styles.infoText}>9 levels • Fixed intervals</ThemedText>
         </View>
       </View>
       </ScrollView>
@@ -279,10 +316,7 @@ const styles = StyleSheet.create({
   title: {
     flex: 1,
     textAlign: 'center',
-    marginRight: 40, // Reduced offset for smaller back button
-    fontSize: 28,
-    fontWeight: '500',
-    lineHeight: 34,
+    marginRight: 40,
   },
   timerDisplay: {
     alignItems: 'center',
@@ -290,20 +324,19 @@ const styles = StyleSheet.create({
     paddingVertical: 40,
     paddingHorizontal: 20,
     borderRadius: 16,
-    backgroundColor: 'rgba(52, 199, 89, 0.1)',
+    backgroundColor: MODE_COLORS.STANDARD_TINT,
+    borderWidth: 1,
+    borderColor: MODE_COLORS.STANDARD_LIGHT,
   },
   levelText: {
-    fontSize: 32,
-    fontWeight: '500',
     marginBottom: 8,
     color: MODE_COLORS.STANDARD,
     textAlign: 'center',
-    lineHeight: 40
   },
   repText: {
-    fontSize: 20,
-    marginBottom: 12,
+    marginBottom: 16,
     textAlign: 'center',
+    opacity: 0.8,
   },
   countdownContainer: {
     width: 180,
@@ -311,35 +344,30 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   countdownText: {
-    fontSize: 56,
-    fontWeight: '600',
-    marginBottom: 12,
-    fontFamily: Platform.select({
-      ios: 'System',
-      android: 'Roboto',
-      default: 'System',
-    }),
-    fontVariant: ['tabular-nums'],
+    marginBottom: 16,
     textAlign: 'center',
-    lineHeight: 60
+    color: MODE_COLORS.STANDARD,
+    fontVariant: ['tabular-nums'],
   },
   totalRepsText: {
-    fontSize: 16,
     opacity: 0.7,
     textAlign: 'center',
   },
   progressContainer: {
     marginBottom: 30,
+    alignItems: 'center',
   },
   progressBar: {
-    height: 8,
-    backgroundColor: 'rgba(52, 199, 89, 0.2)',
-    borderRadius: 4,
+    height: 6,
+    width: '100%',
+    backgroundColor: MODE_COLORS.STANDARD_TINT,
+    borderRadius: 3,
     overflow: 'hidden',
+    marginBottom: 8,
   },
   progressFill: {
     height: '100%',
-    borderRadius: 4,
+    borderRadius: 3,
   },
   controlsContainer: {
     marginBottom: 30,
@@ -360,16 +388,29 @@ const styles = StyleSheet.create({
   },
   startButton: {
     backgroundColor: MODE_COLORS.STANDARD,
+    shadowColor: MODE_COLORS.STANDARD,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
   pauseButton: {
     backgroundColor: MODE_COLORS.ACCENT,
+    shadowColor: MODE_COLORS.ACCENT,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
   stopButton: {
     backgroundColor: MODE_COLORS.DANGER,
+    shadowColor: MODE_COLORS.DANGER,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
   buttonText: {
-    fontSize: 16,
-    fontWeight: '500',
     color: 'white',
     textAlign: 'center',
   },
@@ -383,8 +424,11 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   infoText: {
-    fontSize: 16,
-    opacity: 0.7,
+    opacity: 0.6,
+    textAlign: 'center',
+  },
+  progressText: {
+    opacity: 0.6,
     textAlign: 'center',
   },
 });

@@ -1,12 +1,12 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { StyleSheet, View, Pressable, ScrollView, Platform } from 'react-native';
-import { router } from 'expo-router';
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { useAudio } from '@/components/AudioProvider';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
-import { MODE_COLORS, UI_CONFIG, CALIBRATION_CONFIG, calculatePersonalIntervals, LevelConfig } from '@/constants/BeepTestConfig';
-import { useAudio } from '@/components/AudioProvider';
+import { calculatePersonalIntervals, CALIBRATION_CONFIG, LevelConfig, MODE_COLORS, UI_CONFIG } from '@/constants/BeepTestConfig';
 import { databaseService } from '@/services/DatabaseService';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { router } from 'expo-router';
+import React, { useCallback, useEffect, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 type PersonalTimerStep = 'calibration' | 'countdown' | 'measuring' | 'results' | 'timer' | 'feedback';
 
@@ -28,6 +28,8 @@ interface PersonalTimerState {
   timeRemaining: number;
   personalLevels: LevelConfig[];
   workoutStartTime: number | null;
+  repStartTime: number | null;
+  pausedTime: number;
 }
 
 export default function PersonalTimerScreen() {
@@ -51,6 +53,8 @@ export default function PersonalTimerScreen() {
     timeRemaining: 0,
     personalLevels: [],
     workoutStartTime: null,
+    repStartTime: null,
+    pausedTime: 0,
   });
 
   const [currentMeasurementTime, setCurrentMeasurementTime] = useState<number>(0);
@@ -137,16 +141,33 @@ export default function PersonalTimerScreen() {
   // Personal Timer Control Functions
   const startPersonalTimer = async () => {
     await audio.playStart();
+    const now = Date.now();
     setTimerState(prev => ({ 
       ...prev, 
       isRunning: true, 
       isPaused: false,
-      workoutStartTime: Date.now()
+      workoutStartTime: now,
+      repStartTime: now,
+      pausedTime: 0
     }));
   };
 
   const pausePersonalTimer = () => {
-    setTimerState(prev => ({ ...prev, isPaused: !prev.isPaused }));
+    setTimerState(prev => {
+      if (prev.isPaused) {
+        // Resuming: reset rep start time to account for pause duration
+        const pauseDuration = Date.now() - (prev.repStartTime || Date.now());
+        return { 
+          ...prev, 
+          isPaused: false,
+          pausedTime: prev.pausedTime + pauseDuration,
+          repStartTime: Date.now()
+        };
+      } else {
+        // Pausing: track when pause started
+        return { ...prev, isPaused: true };
+      }
+    });
   };
 
   const stopPersonalTimer = () => {
@@ -159,6 +180,8 @@ export default function PersonalTimerScreen() {
       isPaused: false,
       timeRemaining: prev.personalLevels.length > 0 ? prev.personalLevels[0].interval : 0,
       workoutStartTime: null,
+      repStartTime: null,
+      pausedTime: 0,
     }));
   };
 
@@ -230,11 +253,18 @@ export default function PersonalTimerScreen() {
     if (timerState.isRunning && !timerState.isPaused && timerState.personalLevels.length > 0) {
       interval = setInterval(() => {
         setTimerState(prev => {
+          if (!prev.repStartTime) return prev;
+          
+          // Calculate actual elapsed time since rep started
+          const now = Date.now();
+          const elapsedTime = (now - prev.repStartTime) / 1000; // Convert to seconds
+          const currentLevelIndex = prev.currentLevel - 1;
+          const currentLevelConfig = prev.personalLevels[currentLevelIndex];
+          const timeRemaining = Math.max(0, currentLevelConfig.interval - elapsedTime);
+          
           // If timer reached 0, advance to next rep/level
-          if (prev.timeRemaining <= 0.1) {
+          if (timeRemaining <= 0) {
             const newRep = prev.currentRep + 1;
-            const currentLevelIndex = prev.currentLevel - 1;
-            const currentLevelConfig = prev.personalLevels[currentLevelIndex];
             
             // Play beep for completed rep
             audio.playBeep();
@@ -253,7 +283,8 @@ export default function PersonalTimerScreen() {
                   ...prev,
                   isRunning: false,
                   isPaused: false,
-                  timeRemaining: 0
+                  timeRemaining: 0,
+                  repStartTime: null
                 };
               }
               
@@ -267,7 +298,8 @@ export default function PersonalTimerScreen() {
                 currentLevel: nextLevel,
                 currentRep: 1,
                 totalReps: prev.totalReps + 1,
-                timeRemaining: nextLevelConfig.interval
+                timeRemaining: nextLevelConfig.interval,
+                repStartTime: now // Start timing for new level
               };
             }
             
@@ -276,14 +308,15 @@ export default function PersonalTimerScreen() {
               ...prev,
               currentRep: newRep,
               totalReps: prev.totalReps + 1,
-              timeRemaining: currentLevelConfig.interval
+              timeRemaining: currentLevelConfig.interval,
+              repStartTime: now // Start timing for new rep
             };
           }
           
-          // Countdown timer
+          // Update display with accurate time remaining
           return {
             ...prev,
-            timeRemaining: Math.max(0, prev.timeRemaining - 0.02)
+            timeRemaining
           };
         });
       }, 20); // Update every 20ms for smooth countdown
@@ -313,42 +346,43 @@ export default function PersonalTimerScreen() {
       </View>
       
       <View style={styles.instructionContainer}>
-        <ThemedText style={styles.instructionText}>
+        <ThemedText type="bodyLarge" style={styles.instructionText}>
           Measure your available space by running from point A to point B
         </ThemedText>
         
         <View style={styles.guidelineContainer}>
           <View style={styles.guidelineHeader}>
             <MaterialIcons name="lightbulb-outline" size={20} color={MODE_COLORS.PERSONAL} />
-            <ThemedText style={styles.guidelineTitle}>Guidelines:</ThemedText>
+            <ThemedText type="subtitle" style={styles.guidelineTitle}>Guidelines:</ThemedText>
           </View>
           <View style={styles.guidelineItem}>
             <MaterialIcons name="fiber-manual-record" size={8} color={MODE_COLORS.PERSONAL} />
-            <ThemedText style={styles.guidelineText}>
+            <ThemedText type="body" style={styles.guidelineText}>
               Run at a conversational pace
             </ThemedText>
           </View>
           <View style={styles.guidelineItem}>
             <MaterialIcons name="fiber-manual-record" size={8} color={MODE_COLORS.PERSONAL} />
-            <ThemedText style={styles.guidelineText}>
+            <ThemedText type="body" style={styles.guidelineText}>
               Maintain consistent comfortable speed
             </ThemedText>
           </View>
           <View style={styles.guidelineItem}>
             <MaterialIcons name="fiber-manual-record" size={8} color={MODE_COLORS.PERSONAL} />
-            <ThemedText style={styles.guidelineText}>
+            <ThemedText type="body" style={styles.guidelineText}>
               Stop when you reach your end point
             </ThemedText>
           </View>
         </View>
       </View>
-
+      <View style={styles.buttonContainer}>
       <Pressable 
         style={[styles.button, styles.primaryButton]} 
         onPress={startCalibration}
       >
-        <ThemedText style={styles.buttonText}>Start Calibration</ThemedText>
+        <ThemedText type="button" style={styles.buttonText}>Start Calibration</ThemedText>
       </Pressable>
+      </View>
     </View>
   );
 
@@ -363,11 +397,11 @@ export default function PersonalTimerScreen() {
       
       <View style={styles.countdownDisplay}>
         <View style={styles.calibrationCountdownContainer}>
-          <ThemedText style={styles.countdownText}>
+          <ThemedText type="display" style={styles.countdownText}>
             {calibrationState.countdownNumber}
           </ThemedText>
         </View>
-        <ThemedText style={styles.countdownInstructions}>
+        <ThemedText type="bodyLarge" style={styles.countdownInstructions}>
           Run to your end point when you hear the start signal
         </ThemedText>
       </View>
@@ -385,11 +419,11 @@ export default function PersonalTimerScreen() {
       
       <View style={styles.timerDisplay}>
         <View style={styles.measurementTimerContainer}>
-          <ThemedText style={styles.runningTime}>
+          <ThemedText type="display" style={styles.runningTime}>
             {currentMeasurementTime.toFixed(2)}
           </ThemedText>
         </View>
-        <ThemedText style={styles.measureInstructions}>
+        <ThemedText type="bodyLarge" style={styles.measureInstructions}>
           Run at a comfortable pace to your end point
         </ThemedText>
       </View>
@@ -399,7 +433,7 @@ export default function PersonalTimerScreen() {
         onPress={stopMeasurement}
       >
         <MaterialIcons name="flag" size={24} color="white" style={styles.buttonIcon} />
-        <ThemedText style={styles.buttonText}>I&apos;ve Arrived!</ThemedText>
+        <ThemedText type="button" style={styles.buttonText}>I&apos;ve Arrived!</ThemedText>
       </Pressable>
     </View>
   );
@@ -415,28 +449,28 @@ export default function PersonalTimerScreen() {
       
       <View style={styles.resultsContainer}>
         <View style={styles.resultItem}>
-          <ThemedText style={styles.resultLabel}>Measured Time:</ThemedText>
-          <ThemedText style={styles.resultValue}>
+          <ThemedText type="body" style={styles.resultLabel}>Measured Time:</ThemedText>
+          <ThemedText type="subtitle" style={styles.resultValue}>
             {calibrationState.measuredTime?.toFixed(2)}s
           </ThemedText>
         </View>
         
         <View style={styles.resultItem}>
-          <ThemedText style={styles.resultLabel}>Estimated Distance:</ThemedText>
-          <ThemedText style={styles.resultValue}>
+          <ThemedText type="body" style={styles.resultLabel}>Estimated Distance:</ThemedText>
+          <ThemedText type="subtitle" style={styles.resultValue}>
             ~{calibrationState.estimatedDistance?.toFixed(1)}m
           </ThemedText>
         </View>
         
         <View style={styles.resultItem}>
-          <ThemedText style={styles.resultLabel}>Distance Ratio:</ThemedText>
-          <ThemedText style={styles.resultValue}>
+          <ThemedText type="body" style={styles.resultLabel}>Distance Ratio:</ThemedText>
+          <ThemedText type="subtitle" style={styles.resultValue}>
             {((calibrationState.estimatedDistance || 20) / 20 * 100).toFixed(0)}% of 20m
           </ThemedText>
         </View>
       </View>
 
-      <ThemedText style={styles.confirmationText}>
+      <ThemedText type="bodyLarge" style={styles.confirmationText}>
         This setting will customize the beep test intervals for your space. 
         Ready to start your personal beep test?
       </ThemedText>
@@ -446,14 +480,14 @@ export default function PersonalTimerScreen() {
           style={[styles.button, styles.secondaryButton]} 
           onPress={retryCalibration}
         >
-          <ThemedText style={styles.secondaryButtonText}>Retry</ThemedText>
+          <ThemedText type="button" style={styles.secondaryButtonText}>Retry</ThemedText>
         </Pressable>
         
         <Pressable 
-          style={[styles.button, styles.primaryButton]} 
+          style={[styles.button, styles.primaryButtonInRow]} 
           onPress={confirmCalibration}
         >
-          <ThemedText style={styles.buttonText}>Confirm</ThemedText>
+          <ThemedText type="button" style={styles.buttonText}>Confirm</ThemedText>
         </Pressable>
       </View>
     </View>
@@ -466,27 +500,27 @@ export default function PersonalTimerScreen() {
       <View style={styles.stepContainer}>
         {/* Main Timer Display */}
         <View style={styles.personalTimerDisplay}>
-          <ThemedText type="title" style={styles.personalLevelText}>
+          <ThemedText type="timerLarge" style={styles.personalLevelText}>
             Level {timerState.currentLevel}
           </ThemedText>
           
-          <ThemedText style={styles.personalRepText}>
+          <ThemedText type="headline" style={styles.personalRepText}>
             Rep {timerState.currentRep} of {currentLevelConfig?.reps || 0}
           </ThemedText>
           
           <View style={styles.personalCountdownContainer}>
-            <ThemedText style={styles.personalCountdownText}>
+            <ThemedText type="display" style={styles.personalCountdownText}>
               {timerState.timeRemaining.toFixed(2)}
             </ThemedText>
           </View>
           
-          <ThemedText style={styles.personalTotalRepsText}>
+          <ThemedText type="bodyLarge" style={styles.personalTotalRepsText}>
             Total Reps: {timerState.totalReps}
           </ThemedText>
 
           {/* Calibration Info */}
           <View style={styles.calibrationInfo}>
-            <ThemedText style={styles.calibrationInfoText}>
+            <ThemedText type="caption" style={styles.calibrationInfoText}>
               Calibrated for {calibrationState.estimatedDistance?.toFixed(1)}m space
             </ThemedText>
           </View>
@@ -514,24 +548,24 @@ export default function PersonalTimerScreen() {
               style={[styles.button, styles.primaryButton]} 
               onPress={startPersonalTimer}
             >
-              <ThemedText style={styles.buttonText}>Start</ThemedText>
+              <ThemedText type="button" style={styles.buttonText}>Start</ThemedText>
             </Pressable>
           ) : (
             <View style={styles.runningControls}>
               <Pressable 
-                style={[styles.button, styles.pauseButton]} 
+                style={[styles.button, styles.pauseButton, styles.buttonInRow]} 
                 onPress={pausePersonalTimer}
               >
-                <ThemedText style={styles.buttonText}>
+                <ThemedText type="button" style={styles.buttonText}>
                   {timerState.isPaused ? 'Resume' : 'Pause'}
                 </ThemedText>
               </Pressable>
               
               <Pressable 
-                style={[styles.button, styles.stopButton]} 
+                style={[styles.button, styles.stopButton, styles.buttonInRow]} 
                 onPress={stopPersonalTimer}
               >
-                <ThemedText style={styles.buttonText}>Stop</ThemedText>
+                <ThemedText type="button" style={styles.buttonText}>Stop</ThemedText>
               </Pressable>
             </View>
           )}
@@ -550,31 +584,31 @@ export default function PersonalTimerScreen() {
       </View>
       
       <View style={styles.feedbackContainer}>
-        <ThemedText style={styles.resultText}>
+        <ThemedText type="headline" style={styles.resultText}>
           Reached Level 4 • 31 total reps
         </ThemedText>
         
-        <ThemedText style={styles.feedbackPrompt}>
+        <ThemedText type="bodyLarge" style={styles.feedbackPrompt}>
           How was this workout?
         </ThemedText>
         
         <View style={styles.feedbackButtons}>
           <Pressable style={[styles.button, styles.feedbackButton]}>
             <MaterialIcons name="sentiment-very-satisfied" size={32} color={MODE_COLORS.ACCENT} />
-            <ThemedText style={styles.feedbackText}>Too Easy</ThemedText>
-            <ThemedText style={styles.feedbackSubtext}>(Next: faster)</ThemedText>
+            <ThemedText type="subtitle" style={styles.feedbackText}>Too Easy</ThemedText>
+            <ThemedText type="caption" style={styles.feedbackSubtext}>(Next: faster)</ThemedText>
           </Pressable>
           
           <Pressable style={[styles.button, styles.feedbackButton]}>
             <MaterialIcons name="thumb-up" size={32} color={MODE_COLORS.PERSONAL} />
-            <ThemedText style={styles.feedbackText}>Perfect</ThemedText>
-            <ThemedText style={styles.feedbackSubtext}>(Keep settings)</ThemedText>
+            <ThemedText type="subtitle" style={styles.feedbackText}>Perfect</ThemedText>
+            <ThemedText type="caption" style={styles.feedbackSubtext}>(Keep settings)</ThemedText>
           </Pressable>
           
           <Pressable style={[styles.button, styles.feedbackButton]}>
             <MaterialIcons name="sentiment-very-dissatisfied" size={32} color={MODE_COLORS.DANGER} />
-            <ThemedText style={styles.feedbackText}>Too Hard</ThemedText>
-            <ThemedText style={styles.feedbackSubtext}>(Next: slower)</ThemedText>
+            <ThemedText type="subtitle" style={styles.feedbackText}>Too Hard</ThemedText>
+            <ThemedText type="caption" style={styles.feedbackSubtext}>(Next: slower)</ThemedText>
           </Pressable>
         </View>
       </View>
@@ -593,7 +627,7 @@ export default function PersonalTimerScreen() {
           <Pressable onPress={goBack} style={styles.backButton}>
             <MaterialIcons name="arrow-back" size={24} color={MODE_COLORS.PERSONAL} />
           </Pressable>
-          <ThemedText style={[styles.title, { color: MODE_COLORS.PERSONAL }]}>
+          <ThemedText type="title" style={[styles.title, { color: MODE_COLORS.PERSONAL }]}>
             Personal Beep Test
           </ThemedText>
         </View>
@@ -610,11 +644,11 @@ export default function PersonalTimerScreen() {
         <View style={styles.infoContainer}>
           <View style={styles.infoItem}>
             <MaterialIcons name="person" size={16} color={MODE_COLORS.PERSONAL} />
-            <ThemedText style={styles.infoText}>Customized for your space</ThemedText>
+            <ThemedText type="caption" style={styles.infoText}>Customized for your space</ThemedText>
           </View>
           <View style={styles.infoItem}>
             <MaterialIcons name="tune" size={16} color={MODE_COLORS.PERSONAL} />
-            <ThemedText style={styles.infoText}>Adaptive difficulty • Time-based scaling</ThemedText>
+            <ThemedText type="caption" style={styles.infoText}>Adaptive difficulty • Time-based scaling</ThemedText>
           </View>
         </View>
       </ScrollView>
@@ -653,9 +687,6 @@ const styles = StyleSheet.create({
     flex: 1,
     textAlign: 'center',
     marginRight: 40,
-    fontSize: 28,
-    fontWeight: '500',
-    lineHeight: 34,
   },
   stepContainer: {
     flex: 1,
@@ -672,23 +703,26 @@ const styles = StyleSheet.create({
   },
   stepTitle: {
     textAlign: 'center',
-    fontSize: 24,
-    fontWeight: '500',
   },
   instructionContainer: {
     marginBottom: 40,
     paddingHorizontal: 20,
   },
+  buttonContainer: {
+    paddingHorizontal: 20,
+    width: '100%'
+  },
   instructionText: {
-    fontSize: 18,
     textAlign: 'center',
     marginBottom: 24,
-    lineHeight: 24,
+    opacity: 0.8,
   },
   guidelineContainer: {
-    backgroundColor: 'rgba(0, 122, 255, 0.1)',
+    backgroundColor: MODE_COLORS.PERSONAL_TINT,
     padding: 20,
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: MODE_COLORS.PERSONAL_LIGHT,
   },
   guidelineHeader: {
     flexDirection: 'row',
@@ -697,8 +731,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   guidelineTitle: {
-    fontSize: 16,
-    fontWeight: '500',
+    color: MODE_COLORS.PERSONAL,
   },
   guidelineItem: {
     flexDirection: 'row',
@@ -707,45 +740,42 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   guidelineText: {
-    fontSize: 16,
-    lineHeight: 22,
     flex: 1,
+    opacity: 0.8,
   },
   feedbackContainer: {
     alignItems: 'center',
     width: '100%',
   },
   resultText: {
-    fontSize: 20,
-    fontWeight: '500',
     marginBottom: 24,
     textAlign: 'center',
+    color: MODE_COLORS.PERSONAL,
   },
   feedbackPrompt: {
-    fontSize: 18,
     marginBottom: 32,
     textAlign: 'center',
+    opacity: 0.8,
   },
   feedbackButtons: {
     gap: 16,
     width: '100%',
   },
   feedbackButton: {
-    backgroundColor: 'rgba(0, 122, 255, 0.1)',
+    backgroundColor: MODE_COLORS.PERSONAL_TINT,
     padding: 20,
     borderRadius: 12,
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'center',
     gap: 12,
+    borderWidth: 1,
+    borderColor: MODE_COLORS.PERSONAL_LIGHT,
   },
   feedbackText: {
-    fontSize: 18,
-    fontWeight: '500',
     marginBottom: 4,
   },
   feedbackSubtext: {
-    fontSize: 14,
     opacity: 0.7,
   },
   button: {
@@ -755,14 +785,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     minHeight: UI_CONFIG.MIN_TOUCH_TARGET,
     width: '100%',
-    maxWidth: 300,
   },
   primaryButton: {
     backgroundColor: MODE_COLORS.PERSONAL,
   },
+  primaryButtonInRow: {
+    backgroundColor: MODE_COLORS.PERSONAL,
+    flex: 1,
+    width: undefined, // Override inherited width: '100%' for row layouts
+  },
   buttonText: {
-    fontSize: 18,
-    fontWeight: '500',
     color: 'white',
   },
   placeholderText: {
@@ -782,8 +814,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   infoText: {
-    fontSize: 16,
-    opacity: 0.7,
+    opacity: 0.6,
     textAlign: 'center',
   },
   countdownDisplay: {
@@ -796,21 +827,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   countdownText: {
-    fontSize: 80,
-    fontWeight: '600',
     color: MODE_COLORS.PERSONAL,
-    fontFamily: Platform.select({
-      ios: 'System',
-      android: 'Roboto',
-      default: 'System',
-    }),
     fontVariant: ['tabular-nums'],
     textAlign: 'center',
-    lineHeight: 90,
     marginBottom: 16,
   },
   countdownInstructions: {
-    fontSize: 18,
     textAlign: 'center',
     opacity: 0.8,
   },
@@ -818,8 +840,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 40,
     padding: 30,
-    backgroundColor: `${MODE_COLORS.PERSONAL}15`,
+    backgroundColor: MODE_COLORS.PERSONAL_TINT,
     borderRadius: 16,
+    borderWidth: 1,
+    borderColor: MODE_COLORS.PERSONAL_LIGHT,
   },
   measurementTimerContainer: {
     width: 260,
@@ -827,21 +851,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   runningTime: {
-    fontSize: 64,
-    fontWeight: '600',
     color: MODE_COLORS.PERSONAL,
-    fontFamily: Platform.select({
-      ios: 'System',
-      android: 'Roboto',
-      default: 'System',
-    }),
     fontVariant: ['tabular-nums'],
     textAlign: 'center',
-    lineHeight: 70,
     marginBottom: 12,
   },
   measureInstructions: {
-    fontSize: 16,
     textAlign: 'center',
     opacity: 0.8,
   },
@@ -850,10 +865,12 @@ const styles = StyleSheet.create({
   },
   resultsContainer: {
     width: '100%',
-    backgroundColor: `${MODE_COLORS.PERSONAL}10`,
+    backgroundColor: MODE_COLORS.PERSONAL_TINT,
     borderRadius: 12,
     padding: 20,
     marginBottom: 24,
+    borderWidth: 1,
+    borderColor: MODE_COLORS.PERSONAL_LIGHT,
   },
   resultItem: {
     flexDirection: 'row',
@@ -862,21 +879,16 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: `${MODE_COLORS.PERSONAL}20`,
+    borderBottomColor: MODE_COLORS.PERSONAL_LIGHT,
   },
   resultLabel: {
-    fontSize: 16,
     opacity: 0.8,
   },
   resultValue: {
-    fontSize: 18,
-    fontWeight: '500',
     color: MODE_COLORS.PERSONAL,
   },
   confirmationText: {
-    fontSize: 16,
     textAlign: 'center',
-    lineHeight: 22,
     opacity: 0.8,
     marginBottom: 32,
   },
@@ -884,17 +896,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 12,
     width: '100%',
-    maxWidth: 300,
   },
   secondaryButton: {
     backgroundColor: 'transparent',
     borderWidth: 2,
     borderColor: MODE_COLORS.PERSONAL,
     flex: 1,
+    width: undefined, // Override inherited width: '100%' for row layouts
   },
   secondaryButtonText: {
-    fontSize: 16,
-    fontWeight: '500',
     color: MODE_COLORS.PERSONAL,
   },
   personalTimerDisplay: {
@@ -903,21 +913,20 @@ const styles = StyleSheet.create({
     paddingVertical: 40,
     paddingHorizontal: 20,
     borderRadius: 16,
-    backgroundColor: 'rgba(0, 122, 255, 0.1)',
+    backgroundColor: MODE_COLORS.PERSONAL_TINT,
+    borderWidth: 1,
+    borderColor: MODE_COLORS.PERSONAL_LIGHT,
     width: '100%',
   },
   personalLevelText: {
-    fontSize: 32,
-    fontWeight: '500',
     marginBottom: 8,
     color: MODE_COLORS.PERSONAL,
     textAlign: 'center',
-    lineHeight: 40
   },
   personalRepText: {
-    fontSize: 20,
-    marginBottom: 12,
+    marginBottom: 16,
     textAlign: 'center',
+    opacity: 0.8,
   },
   personalCountdownContainer: {
     width: 180,
@@ -925,33 +934,24 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   personalCountdownText: {
-    fontSize: 56,
-    fontWeight: '600',
-    marginBottom: 12,
-    fontFamily: Platform.select({
-      ios: 'System',
-      android: 'Roboto',
-      default: 'System',
-    }),
+    marginBottom: 16,
     fontVariant: ['tabular-nums'],
     textAlign: 'center',
-    lineHeight: 60
+    color: MODE_COLORS.PERSONAL,
   },
   personalTotalRepsText: {
-    fontSize: 16,
     opacity: 0.7,
     textAlign: 'center',
     marginBottom: 16,
   },
   calibrationInfo: {
-    backgroundColor: `${MODE_COLORS.PERSONAL}20`,
+    backgroundColor: MODE_COLORS.PERSONAL_LIGHT,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,
   },
   calibrationInfoText: {
-    fontSize: 14,
-    opacity: 0.8,
+    opacity: 0.9,
     textAlign: 'center',
     color: MODE_COLORS.PERSONAL,
   },
@@ -960,14 +960,14 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   personalProgressBar: {
-    height: 8,
-    backgroundColor: 'rgba(0, 122, 255, 0.2)',
-    borderRadius: 4,
+    height: 6,
+    backgroundColor: MODE_COLORS.PERSONAL_TINT,
+    borderRadius: 3,
     overflow: 'hidden',
   },
   personalProgressFill: {
     height: '100%',
-    borderRadius: 4,
+    borderRadius: 3,
   },
   personalControlsContainer: {
     width: '100%',
@@ -978,6 +978,13 @@ const styles = StyleSheet.create({
   },
   stopButton: {
     backgroundColor: MODE_COLORS.DANGER,
+  },
+  buttonInRow: {
+    flex: 1,
+    width: undefined, // Override inherited width: '100%' for row layouts
+  },
+  singleButton: {
+    alignSelf: 'stretch', // Override parent's alignItems: 'center' to take full width
   },
   runningControls: {
     flexDirection: 'row',
