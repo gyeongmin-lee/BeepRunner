@@ -4,6 +4,27 @@ This file tracks the current development status and context for Claude Code sess
 
 ## Recent Changes
 
+### 2025-06-10
+- **🔧 Development Reset Button Added**: Implemented temporary reset data button for development testing
+- **Reset functionality**: Added "Reset All Data (Dev)" button to home screen Quick Actions section
+- **Confirmation dialog**: Implemented safety confirmation before clearing data to prevent accidental resets
+- **Visual distinction**: Styled with red color, dashed border, and clear "Dev" label to indicate temporary nature
+- **Database integration**: Connected to existing `clearAllData()` method that preserves app settings
+- **Loading state**: Added disabled state with "Resetting..." text during operation
+- **🐛 Calibration Calculation Fixed**: Corrected inverted distance calculation formula
+- **Issue**: Distance calculation was inverted (e.g., 4.5s → 40m instead of 10m)
+- **Root cause**: Formula was using `(STANDARD_TIME / measuredTime)` instead of `(measuredTime / STANDARD_TIME)`
+- **Fix applied**: Changed to correct formula: `estimatedDistance = (measuredTime / STANDARD_TIME) * STANDARD_DISTANCE`
+- **Verified**: All test cases now calculate correctly (4.5s → 10m, 9s → 20m, 18s → 40m)
+
+### 2025-06-09
+- **🎯 Calibration Persistence Implemented**: Resolved user-reported issue where Personal Timer required calibration every time
+- **Previous calibration detection**: Added automatic check for existing calibration data on Personal Timer entry
+- **User choice flow**: Implemented "Previous Calibration Found" screen with options to "Use Last Settings" or "Re-calibrate"
+- **Database integration**: Leveraged existing `getLatestCalibration()` method for seamless data retrieval
+- **Error handling**: Added comprehensive error handling for database failures and invalid date formatting
+- **UI/UX enhancement**: Created consistent design patterns matching existing calibration flow aesthetics
+
 ### 2025-06-08
 - **expo-av → expo-audio migration**: Successfully migrated from deprecated expo-av to expo-audio package
 - **AudioProvider created**: Replaced AudioService.ts with React Context using expo-audio hooks
@@ -73,6 +94,8 @@ This file tracks the current development status and context for Claude Code sess
 - ✅ Distance calculation using calibration algorithm from BeepTestConfig
 - ✅ Audio countdown (3-2-1-GO) with beep sequences
 - ✅ Calibration results display with estimated distance and retry option
+- ✅ **Calibration persistence**: Automatic detection and reuse of previous calibration data
+- ✅ **User choice interface**: "Use Last Settings" vs "Re-calibrate" options with previous calibration details
 
 ### Personal Timer Engine (P0 - MVP)
 - ✅ Personal timer with calibrated intervals based on measured space

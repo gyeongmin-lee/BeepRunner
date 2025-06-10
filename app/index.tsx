@@ -1,11 +1,13 @@
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { MODE_COLORS, UI_CONFIG } from '@/constants/BeepTestConfig';
+import { databaseService } from '@/services/DatabaseService';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { router } from 'expo-router';
-import React from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import React, { useState } from 'react';
+import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 export default function HomeScreen() {
+  const [isResetting, setIsResetting] = useState(false);
   
   const navigateToStandardTimer = () => {
     router.push('/standard-timer');
@@ -23,6 +25,36 @@ export default function HomeScreen() {
   const navigateToSettings = () => {
     // Placeholder for now
     console.log('Navigate to settings');
+  };
+
+  // DEV ONLY: Reset all data
+  const handleResetData = async () => {
+    Alert.alert(
+      'Reset All Data',
+      'This will delete all workout history and calibration data. Are you sure?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel'
+        },
+        {
+          text: 'Reset',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setIsResetting(true);
+              await databaseService.clearAllData();
+              Alert.alert('Success', 'All data has been reset successfully.');
+            } catch (error) {
+              Alert.alert('Error', 'Failed to reset data. Please try again.');
+              console.error('Reset data error:', error);
+            } finally {
+              setIsResetting(false);
+            }
+          }
+        }
+      ]
+    );
   };
 
   return (
@@ -117,6 +149,22 @@ export default function HomeScreen() {
           <MaterialIcons name="settings" size={24} color={MODE_COLORS.ACCENT} />
           <ThemedText type="caption" style={styles.quickActionText}>Settings</ThemedText>
         </Pressable>
+        
+        {/* DEV ONLY: Reset Data Button */}
+        <Pressable 
+          style={[styles.quickActionButton, styles.resetButton]} 
+          onPress={handleResetData}
+          disabled={isResetting}
+        >
+          <MaterialIcons 
+            name="delete-forever" 
+            size={24} 
+            color={isResetting ? '#999' : '#ff4444'} 
+          />
+          <ThemedText type="caption" style={[styles.quickActionText, styles.resetButtonText]}>
+            {isResetting ? 'Resetting...' : 'Reset Data (Dev)'}
+          </ThemedText>
+        </Pressable>
       </View>
       </ScrollView>
     </ThemedView>
@@ -201,5 +249,17 @@ const styles = StyleSheet.create({
   quickActionText: {
     textAlign: 'center',
     opacity: 0.6,
+  },
+  resetButton: {
+    borderWidth: 1.5,
+    borderColor: '#ff4444',
+    borderStyle: 'dashed',
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 68, 68, 0.05)',
+  },
+  resetButtonText: {
+    color: '#ff4444',
+    fontWeight: '500',
+    opacity: 1,
   },
 });

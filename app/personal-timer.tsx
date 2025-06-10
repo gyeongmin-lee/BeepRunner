@@ -2,13 +2,13 @@ import { useAudio } from '@/components/AudioProvider';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { calculatePersonalIntervals, CALIBRATION_CONFIG, LevelConfig, MODE_COLORS, UI_CONFIG } from '@/constants/BeepTestConfig';
-import { databaseService } from '@/services/DatabaseService';
+import { CalibrationRecord, databaseService } from '@/services/DatabaseService';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { router } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
-type PersonalTimerStep = 'calibration' | 'countdown' | 'measuring' | 'results' | 'timer' | 'feedback';
+type PersonalTimerStep = 'previous-calibration' | 'calibration' | 'countdown' | 'measuring' | 'results' | 'timer' | 'feedback';
 
 interface CalibrationState {
   measuredTime: number | null;
@@ -35,6 +35,7 @@ interface PersonalTimerState {
 export default function PersonalTimerScreen() {
   const audio = useAudio();
   const [currentStep, setCurrentStep] = useState<PersonalTimerStep>('calibration');
+  const [previousCalibration, setPreviousCalibration] = useState<CalibrationRecord | null>(null);
   const [calibrationState, setCalibrationState] = useState<CalibrationState>({
     measuredTime: null,
     estimatedDistance: null,
@@ -59,8 +60,54 @@ export default function PersonalTimerScreen() {
 
   const [currentMeasurementTime, setCurrentMeasurementTime] = useState<number>(0);
 
+  // Check for existing calibration on component mount
+  useEffect(() => {
+    const checkExistingCalibration = async () => {
+      try {
+        const latestCalibration = await databaseService.getLatestCalibration();
+        if (latestCalibration) {
+          setPreviousCalibration(latestCalibration);
+          setCurrentStep('previous-calibration');
+        }
+        // If no calibration exists, stay on 'calibration' step (default)
+      } catch (error) {
+        console.warn('Failed to check existing calibration:', error);
+        // On error, proceed with calibration flow
+      }
+    };
+
+    checkExistingCalibration();
+  }, []);
+
   const goBack = () => {
     router.back();
+  };
+
+  const useLastCalibration = async () => {
+    if (previousCalibration) {
+      try {
+        const personalLevels = calculatePersonalIntervals(previousCalibration.measured_time);
+        setCalibrationState(prev => ({
+          ...prev,
+          measuredTime: previousCalibration.measured_time,
+          estimatedDistance: previousCalibration.estimated_distance,
+        }));
+        setTimerState(prev => ({
+          ...prev,
+          personalLevels,
+          timeRemaining: personalLevels[0].interval,
+        }));
+        setCurrentStep('timer');
+      } catch (error) {
+        console.warn('Failed to use previous calibration:', error);
+        // Fallback to new calibration if calculation fails
+        setCurrentStep('calibration');
+      }
+    }
+  };
+
+  const startNewCalibration = () => {
+    setCurrentStep('calibration');
   };
 
   const startCalibration = async () => {
@@ -83,7 +130,7 @@ export default function PersonalTimerScreen() {
   const stopMeasurement = () => {
     if (calibrationState.measureStartTime) {
       const measuredTime = (Date.now() - calibrationState.measureStartTime) / 1000;
-      const estimatedDistance = (CALIBRATION_CONFIG.STANDARD_TIME / measuredTime) * CALIBRATION_CONFIG.STANDARD_DISTANCE;
+      const estimatedDistance = (measuredTime / CALIBRATION_CONFIG.STANDARD_TIME) * CALIBRATION_CONFIG.STANDARD_DISTANCE;
       
       setCalibrationState(prev => ({
         ...prev,
@@ -335,6 +382,89 @@ export default function PersonalTimerScreen() {
       completePersonalWorkout();
     }
   }, [timerState.isRunning, timerState.workoutStartTime, timerState.timeRemaining, timerState.personalLevels.length, completePersonalWorkout]);
+
+  const renderPreviousCalibrationStep = () => {
+    if (!previousCalibration) return null;
+    
+    let calibrationDate = 'Unknown';
+    try {
+      if (previousCalibration.created_at) {
+        calibrationDate = new Date(previousCalibration.created_at).toLocaleDateString();
+      }
+    } catch (error) {
+      console.warn('Failed to format calibration date:', error);
+    }
+    
+    return (
+      <View style={styles.stepContainer}>
+        <View style={styles.titleWithIcon}>
+          <MaterialIcons name="history" size={32} color={MODE_COLORS.PERSONAL} />
+          <ThemedText type="title" style={styles.stepTitle}>
+            Previous Calibration Found
+          </ThemedText>
+        </View>
+        
+        <View style={styles.previousCalibrationContainer}>
+          <ThemedText type="bodyLarge" style={styles.instructionText}>
+            We found your previous space calibration. Would you like to use it or measure again?
+          </ThemedText>
+          
+          <View style={styles.previousCalibrationInfo}>
+            <View style={styles.calibrationInfoHeader}>
+              <MaterialIcons name="info-outline" size={20} color={MODE_COLORS.PERSONAL} />
+              <ThemedText type="subtitle" style={styles.calibrationInfoTitle}>Last Calibration</ThemedText>
+            </View>
+            
+            <View style={styles.calibrationDataGrid}>
+              <View style={styles.calibrationDataItem}>
+                <ThemedText type="caption" style={styles.calibrationDataLabel}>Date:</ThemedText>
+                <ThemedText type="body" style={styles.calibrationDataValue}>{calibrationDate}</ThemedText>
+              </View>
+              
+              <View style={styles.calibrationDataItem}>
+                <ThemedText type="caption" style={styles.calibrationDataLabel}>Time:</ThemedText>
+                <ThemedText type="body" style={styles.calibrationDataValue}>
+                  {previousCalibration.measured_time.toFixed(2)}s
+                </ThemedText>
+              </View>
+              
+              <View style={styles.calibrationDataItem}>
+                <ThemedText type="caption" style={styles.calibrationDataLabel}>Distance:</ThemedText>
+                <ThemedText type="body" style={styles.calibrationDataValue}>
+                  ~{previousCalibration.estimated_distance.toFixed(1)}m
+                </ThemedText>
+              </View>
+              
+              <View style={styles.calibrationDataItem}>
+                <ThemedText type="caption" style={styles.calibrationDataLabel}>Ratio:</ThemedText>
+                <ThemedText type="body" style={styles.calibrationDataValue}>
+                  {((previousCalibration.estimated_distance / 20) * 100).toFixed(0)}% of 20m
+                </ThemedText>
+              </View>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.buttonRow}>
+          <Pressable 
+            style={[styles.button, styles.secondaryButton, styles.iconButton]}
+            onPress={startNewCalibration}
+          >
+            <MaterialIcons name="refresh" size={20} color={MODE_COLORS.PERSONAL} style={styles.buttonIcon} />
+            <ThemedText type="button" style={styles.secondaryButtonText}>Re-calibrate</ThemedText>
+          </Pressable>
+          
+          <Pressable 
+            style={[styles.button, styles.primaryButton, styles.iconButton]}
+            onPress={useLastCalibration}
+          >
+            <MaterialIcons name="play-arrow" size={20} color="white" style={styles.buttonIcon} />
+            <ThemedText type="button" style={styles.buttonText}>Use Last Settings</ThemedText>
+          </Pressable>
+        </View>
+      </View>
+    );
+  };
 
   const renderCalibrationStep = () => (
     <View style={styles.stepContainer}>
@@ -633,6 +763,7 @@ export default function PersonalTimerScreen() {
         </View>
 
         {/* Step Content */}
+        {currentStep === 'previous-calibration' && renderPreviousCalibrationStep()}
         {currentStep === 'calibration' && renderCalibrationStep()}
         {currentStep === 'countdown' && renderCountdownStep()}
         {currentStep === 'measuring' && renderMeasuringStep()}
@@ -665,7 +796,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 20,
-    paddingBottom: 100, // Extra space for better scrolling
+    paddingBottom: 20, // Extra space for better scrolling
     flexGrow: 1, // Allow content to grow naturally
   },
   header: {
@@ -692,7 +823,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 40,
+    paddingVertical: 20,
     minHeight: 400, // Ensure minimum height for content
   },
   titleWithIcon: {
@@ -893,7 +1024,7 @@ const styles = StyleSheet.create({
     marginBottom: 32,
   },
   buttonRow: {
-    flexDirection: 'row',
+    flexDirection: 'column',
     gap: 12,
     width: '100%',
   },
@@ -906,6 +1037,10 @@ const styles = StyleSheet.create({
   },
   secondaryButtonText: {
     color: MODE_COLORS.PERSONAL,
+  },
+  iconButton: {
+    flexDirection: 'row',
+    justifyContent: 'center'
   },
   personalTimerDisplay: {
     alignItems: 'center',
@@ -971,7 +1106,6 @@ const styles = StyleSheet.create({
   },
   personalControlsContainer: {
     width: '100%',
-    maxWidth: 300,
   },
   pauseButton: {
     backgroundColor: MODE_COLORS.ACCENT,
@@ -990,5 +1124,44 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     gap: 16,
+  },
+  previousCalibrationContainer: {
+    width: '100%',
+    marginBottom: 32,
+  },
+  previousCalibrationInfo: {
+    backgroundColor: MODE_COLORS.PERSONAL_TINT,
+    borderRadius: 12,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: MODE_COLORS.PERSONAL_LIGHT,
+    marginTop: 20,
+  },
+  calibrationInfoHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 16,
+  },
+  calibrationInfoTitle: {
+    color: MODE_COLORS.PERSONAL,
+  },
+  calibrationDataGrid: {
+    gap: 12,
+  },
+  calibrationDataItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: MODE_COLORS.PERSONAL_LIGHT,
+  },
+  calibrationDataLabel: {
+    opacity: 0.7,
+  },
+  calibrationDataValue: {
+    color: MODE_COLORS.PERSONAL,
+    fontWeight: '500',
   },
 });
