@@ -106,9 +106,6 @@ export default function StandardTimerScreen() {
             const newRep = prev.currentRep + 1;
             const currentLevelIndex = prev.currentLevel - 1;
             
-            // Play beep for completed rep
-            audio.playBeep();
-            
             // Check if current level is complete
             if (newRep > STANDARD_LEVELS[currentLevelIndex].reps) {
               // Move to next level
@@ -143,7 +140,7 @@ export default function StandardTimerScreen() {
                 };
               }
               
-              // Level up sound
+              // Level up - only play level up sound (not rep beep)
               audio.playLevelUp();
               
               // Start next level
@@ -158,7 +155,9 @@ export default function StandardTimerScreen() {
               };
             }
             
-            // Continue current level, next rep
+            // Continue current level, next rep - play rep beep
+            audio.playBeep();
+            
             return {
               ...prev,
               currentRep: newRep,

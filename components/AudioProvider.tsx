@@ -7,6 +7,10 @@ import React, { createContext, useContext, useEffect, useCallback, ReactNode } f
 import { useAudioPlayer, useAudioPlayerStatus, setAudioModeAsync, requestRecordingPermissionsAsync } from 'expo-audio';
 import { AUDIO_CONFIG } from '@/constants/BeepTestConfig';
 
+// Audio source imports
+const repBeepSource = require('@/assets/audio/rep_beep.mp3');
+const levelBeepSource = require('@/assets/audio/level_beep.mp3');
+
 export interface AudioContextType {
   initialize: () => Promise<void>;
   playBeep: () => void;
@@ -100,36 +104,47 @@ export function AudioProvider({ children }: AudioProviderProps) {
     return 'data:audio/wav;base64,' + btoa(binary);
   }, []);
 
-  // Generate audio sources
-  const beepSource = arrayBufferToBase64(generateBeepBuffer(AUDIO_CONFIG.BEEP_FREQUENCY, AUDIO_CONFIG.BEEP_DURATION));
+  // Generate audio sources (only for sounds without MP3 files)
   const countdownSource = arrayBufferToBase64(generateBeepBuffer(AUDIO_CONFIG.COUNTDOWN_FREQUENCY, AUDIO_CONFIG.COUNTDOWN_DURATION));
-  const levelUpSource = arrayBufferToBase64(generateBeepBuffer(1000, 300));
   const completeSource1 = arrayBufferToBase64(generateBeepBuffer(800, 200));
   const completeSource2 = arrayBufferToBase64(generateBeepBuffer(1000, 200));
   const completeSource3 = arrayBufferToBase64(generateBeepBuffer(1200, 200));
 
-  // Create audio players
-  const beepPlayer = useAudioPlayer(beepSource);
+  // Create audio players with error handling for MP3 files
+  let beepPlayer: ReturnType<typeof useAudioPlayer> | null = null;
+  let levelUpPlayer: ReturnType<typeof useAudioPlayer> | null = null;
+  
+  try {
+    beepPlayer = useAudioPlayer(repBeepSource);
+  } catch (error) {
+    console.warn('Failed to load rep_beep.mp3:', error);
+  }
+  
+  try {
+    levelUpPlayer = useAudioPlayer(levelBeepSource);
+  } catch (error) {
+    console.warn('Failed to load level_beep.mp3:', error);
+  }
+  
   const countdownPlayer = useAudioPlayer(countdownSource);
-  const levelUpPlayer = useAudioPlayer(levelUpSource);
   const completePlayer1 = useAudioPlayer(completeSource1);
   const completePlayer2 = useAudioPlayer(completeSource2);
   const completePlayer3 = useAudioPlayer(completeSource3);
 
-  // Status tracking for cleanup
-  const beepStatus = useAudioPlayerStatus(beepPlayer);
+  // Status tracking for cleanup (with null checks for MP3 players)
+  const beepStatus = beepPlayer ? useAudioPlayerStatus(beepPlayer) : null;
   const countdownStatus = useAudioPlayerStatus(countdownPlayer);
-  const levelUpStatus = useAudioPlayerStatus(levelUpPlayer);
+  const levelUpStatus = levelUpPlayer ? useAudioPlayerStatus(levelUpPlayer) : null;
   const complete1Status = useAudioPlayerStatus(completePlayer1);
   const complete2Status = useAudioPlayerStatus(completePlayer2);
   const complete3Status = useAudioPlayerStatus(completePlayer3);
 
   // Reset players when they finish
   useEffect(() => {
-    if (beepStatus.didJustFinish) {
+    if (beepStatus?.didJustFinish && beepPlayer) {
       beepPlayer.seekTo(0);
     }
-  }, [beepStatus.didJustFinish, beepPlayer]);
+  }, [beepStatus?.didJustFinish, beepPlayer]);
 
   useEffect(() => {
     if (countdownStatus.didJustFinish) {
@@ -138,10 +153,10 @@ export function AudioProvider({ children }: AudioProviderProps) {
   }, [countdownStatus.didJustFinish, countdownPlayer]);
 
   useEffect(() => {
-    if (levelUpStatus.didJustFinish) {
+    if (levelUpStatus?.didJustFinish && levelUpPlayer) {
       levelUpPlayer.seekTo(0);
     }
-  }, [levelUpStatus.didJustFinish, levelUpPlayer]);
+  }, [levelUpStatus?.didJustFinish, levelUpPlayer]);
 
   useEffect(() => {
     if (complete1Status.didJustFinish) {
@@ -175,6 +190,7 @@ export function AudioProvider({ children }: AudioProviderProps) {
   }, []);
 
   const playBeep = useCallback(() => {
+    if (!beepPlayer) return; // Silent failure if MP3 didn't load
     try {
       beepPlayer.play();
     } catch (error) {
@@ -191,6 +207,7 @@ export function AudioProvider({ children }: AudioProviderProps) {
   }, [countdownPlayer]);
 
   const playStart = useCallback(async () => {
+    if (!beepPlayer) return; // Silent failure if MP3 didn't load
     try {
       // Start signal: two quick beeps
       beepPlayer.play();
@@ -203,6 +220,7 @@ export function AudioProvider({ children }: AudioProviderProps) {
   }, [beepPlayer]);
 
   const playLevelUp = useCallback(() => {
+    if (!levelUpPlayer) return; // Silent failure if MP3 didn't load
     try {
       levelUpPlayer.play();
     } catch (error) {

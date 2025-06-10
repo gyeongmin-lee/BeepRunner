@@ -313,9 +313,6 @@ export default function PersonalTimerScreen() {
           if (timeRemaining <= 0) {
             const newRep = prev.currentRep + 1;
             
-            // Play beep for completed rep
-            audio.playBeep();
-            
             // Check if current level is complete
             if (newRep > currentLevelConfig.reps) {
               // Move to next level
@@ -335,7 +332,7 @@ export default function PersonalTimerScreen() {
                 };
               }
               
-              // Level up sound
+              // Level up - only play level up sound (not rep beep)
               audio.playLevelUp();
               
               // Start next level
@@ -350,7 +347,9 @@ export default function PersonalTimerScreen() {
               };
             }
             
-            // Continue current level, next rep
+            // Continue current level, next rep - play rep beep
+            audio.playBeep();
+            
             return {
               ...prev,
               currentRep: newRep,
