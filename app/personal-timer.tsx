@@ -6,7 +6,7 @@ import { CalibrationRecord, databaseService } from '@/services/DatabaseService';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { router } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 type PersonalTimerStep = 'previous-calibration' | 'calibration' | 'countdown' | 'measuring' | 'results' | 'timer' | 'feedback';
 
@@ -59,6 +59,7 @@ export default function PersonalTimerScreen() {
   });
 
   const [currentMeasurementTime, setCurrentMeasurementTime] = useState<number>(0);
+  const [workoutSessionId, setWorkoutSessionId] = useState<number | null>(null);
 
   // Check for existing calibration on component mount
   useEffect(() => {
@@ -86,10 +87,20 @@ export default function PersonalTimerScreen() {
   const useLastCalibration = async () => {
     if (previousCalibration) {
       try {
-        const personalLevels = calculatePersonalIntervals(previousCalibration.measured_time);
+        // Check if there's a difficulty adjustment saved
+        let adjustedTime = previousCalibration.measured_time;
+        const savedAdjustment = await databaseService.getSetting('personal_difficulty_adjustment');
+        
+        if (savedAdjustment) {
+          adjustedTime = parseFloat(savedAdjustment);
+          // Clear the adjustment after using it
+          await databaseService.setSetting('personal_difficulty_adjustment', '');
+        }
+        
+        const personalLevels = calculatePersonalIntervals(adjustedTime);
         setCalibrationState(prev => ({
           ...prev,
-          measuredTime: previousCalibration.measured_time,
+          measuredTime: adjustedTime,
           estimatedDistance: previousCalibration.estimated_distance,
         }));
         setTimerState(prev => ({
@@ -217,19 +228,26 @@ export default function PersonalTimerScreen() {
     });
   };
 
-  const stopPersonalTimer = () => {
-    setTimerState(prev => ({
-      ...prev,
-      currentLevel: 1,
-      currentRep: 1,
-      totalReps: 0,
-      isRunning: false,
-      isPaused: false,
-      timeRemaining: prev.personalLevels.length > 0 ? prev.personalLevels[0].interval : 0,
-      workoutStartTime: null,
-      repStartTime: null,
-      pausedTime: 0,
-    }));
+  const finishPersonalWorkout = () => {
+    Alert.alert(
+      "Finish Workout",
+      `Finish workout at Level ${timerState.currentLevel} with ${timerState.totalReps} reps?`,
+      [
+        {
+          text: "Cancel",
+          style: "cancel"
+        },
+        {
+          text: "Finish",
+          style: "default",
+          onPress: () => {
+            // Stop the timer and trigger completion
+            setTimerState(prev => ({ ...prev, isRunning: false, isPaused: false }));
+            completePersonalWorkout();
+          }
+        }
+      ]
+    );
   };
 
   const completePersonalWorkout = useCallback(async () => {
@@ -239,7 +257,7 @@ export default function PersonalTimerScreen() {
         const workoutDuration = Math.round((Date.now() - timerState.workoutStartTime) / 60000); // minutes
         const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
         
-        await databaseService.saveWorkout({
+        const sessionId = await databaseService.saveWorkout({
           date: today,
           workout_mode: 'personal',
           max_level: timerState.currentLevel,
@@ -247,6 +265,8 @@ export default function PersonalTimerScreen() {
           duration_minutes: workoutDuration,
           notes: `Calibrated for ${calibrationState.estimatedDistance?.toFixed(1)}m space`
         });
+        
+        setWorkoutSessionId(sessionId);
       } catch (error) {
         console.warn('Failed to save workout:', error);
       }
@@ -691,16 +711,51 @@ export default function PersonalTimerScreen() {
               </Pressable>
               
               <Pressable 
-                style={[styles.button, styles.stopButton, styles.buttonInRow]} 
-                onPress={stopPersonalTimer}
+                style={[styles.button, styles.finishButton, styles.buttonInRow]} 
+                onPress={finishPersonalWorkout}
               >
-                <ThemedText type="button" style={styles.buttonText}>Stop</ThemedText>
+                <ThemedText type="button" style={styles.buttonText}>Finish</ThemedText>
               </Pressable>
             </View>
           )}
         </View>
       </View>
     );
+  };
+
+  const handleFeedback = async (feedbackType: 'too_easy' | 'perfect' | 'too_hard') => {
+    if (!workoutSessionId) {
+      console.warn('No workout session ID available for feedback');
+      router.back();
+      return;
+    }
+
+    const difficultyMultipliers = {
+      'too_easy': 0.9,
+      'perfect': 1.0,
+      'too_hard': 1.15
+    };
+
+    try {
+      await databaseService.saveCalibrationSuggestion({
+        workout_session_id: workoutSessionId,
+        suggestion_type: feedbackType,
+        user_action: 'accepted',
+        difficulty_multiplier: difficultyMultipliers[feedbackType]
+      });
+
+      // Save the difficulty adjustment as a setting for next time
+      if (feedbackType !== 'perfect' && calibrationState.measuredTime) {
+        const adjustedTime = calibrationState.measuredTime * difficultyMultipliers[feedbackType];
+        await databaseService.setSetting('personal_difficulty_adjustment', adjustedTime.toString());
+      }
+
+      // Go back to home
+      router.back();
+    } catch (error) {
+      console.warn('Failed to save feedback:', error);
+      router.back();
+    }
   };
 
   const renderFeedbackStep = () => (
@@ -714,7 +769,7 @@ export default function PersonalTimerScreen() {
       
       <View style={styles.feedbackContainer}>
         <ThemedText type="headline" style={styles.resultText}>
-          Reached Level 4 • 31 total reps
+          Reached Level {timerState.currentLevel} • {timerState.totalReps} total reps
         </ThemedText>
         
         <ThemedText type="bodyLarge" style={styles.feedbackPrompt}>
@@ -722,19 +777,28 @@ export default function PersonalTimerScreen() {
         </ThemedText>
         
         <View style={styles.feedbackButtons}>
-          <Pressable style={[styles.button, styles.feedbackButton]}>
+          <Pressable 
+            style={[styles.button, styles.feedbackButton]}
+            onPress={() => handleFeedback('too_easy')}
+          >
             <MaterialIcons name="sentiment-very-satisfied" size={32} color={MODE_COLORS.ACCENT} />
             <ThemedText type="subtitle" style={styles.feedbackText}>Too Easy</ThemedText>
             <ThemedText type="caption" style={styles.feedbackSubtext}>(Next: faster)</ThemedText>
           </Pressable>
           
-          <Pressable style={[styles.button, styles.feedbackButton]}>
+          <Pressable 
+            style={[styles.button, styles.feedbackButton]}
+            onPress={() => handleFeedback('perfect')}
+          >
             <MaterialIcons name="thumb-up" size={32} color={MODE_COLORS.PERSONAL} />
             <ThemedText type="subtitle" style={styles.feedbackText}>Perfect</ThemedText>
             <ThemedText type="caption" style={styles.feedbackSubtext}>(Keep settings)</ThemedText>
           </Pressable>
           
-          <Pressable style={[styles.button, styles.feedbackButton]}>
+          <Pressable 
+            style={[styles.button, styles.feedbackButton]}
+            onPress={() => handleFeedback('too_hard')}
+          >
             <MaterialIcons name="sentiment-very-dissatisfied" size={32} color={MODE_COLORS.DANGER} />
             <ThemedText type="subtitle" style={styles.feedbackText}>Too Hard</ThemedText>
             <ThemedText type="caption" style={styles.feedbackSubtext}>(Next: slower)</ThemedText>
@@ -1111,6 +1175,9 @@ const styles = StyleSheet.create({
   },
   stopButton: {
     backgroundColor: MODE_COLORS.DANGER,
+  },
+  finishButton: {
+    backgroundColor: '#4CAF50', // Green color for positive action
   },
   buttonInRow: {
     flex: 1,

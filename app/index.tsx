@@ -151,20 +151,22 @@ export default function HomeScreen() {
         </Pressable>
         
         {/* DEV ONLY: Reset Data Button */}
-        <Pressable 
-          style={[styles.quickActionButton, styles.resetButton]} 
-          onPress={handleResetData}
-          disabled={isResetting}
-        >
-          <MaterialIcons 
-            name="delete-forever" 
-            size={24} 
-            color={isResetting ? '#999' : '#ff4444'} 
-          />
-          <ThemedText type="caption" style={[styles.quickActionText, styles.resetButtonText]}>
-            {isResetting ? 'Resetting...' : 'Reset Data (Dev)'}
-          </ThemedText>
-        </Pressable>
+        {__DEV__ && (
+          <Pressable 
+            style={[styles.quickActionButton, styles.resetButton]} 
+            onPress={handleResetData}
+            disabled={isResetting}
+          >
+            <MaterialIcons 
+              name="delete-forever" 
+              size={24} 
+              color={isResetting ? '#999' : '#ff4444'} 
+            />
+            <ThemedText type="caption" style={[styles.quickActionText, styles.resetButtonText]}>
+              {isResetting ? 'Resetting...' : 'Reset Data (Dev)'}
+            </ThemedText>
+          </Pressable>
+        )}
       </View>
       </ScrollView>
     </ThemedView>

@@ -4,7 +4,7 @@ import { MODE_COLORS, STANDARD_LEVELS, UI_CONFIG } from '@/constants/BeepTestCon
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useAudio } from '@/components/AudioProvider';
 import { databaseService } from '@/services/DatabaseService';
 
@@ -20,8 +20,12 @@ interface TimerState {
   pausedTime: number;
 }
 
+type StandardTimerStep = 'timer' | 'completion';
+
 export default function StandardTimerScreen() {
   const audio = useAudio();
+  const [currentStep, setCurrentStep] = useState<StandardTimerStep>('timer');
+  const [workoutSessionId, setWorkoutSessionId] = useState<number | null>(null);
   const [timerState, setTimerState] = useState<TimerState>({
     currentLevel: 1,
     currentRep: 1,
@@ -68,22 +72,103 @@ export default function StandardTimerScreen() {
     });
   };
 
-  const stopTimer = () => {
-    setTimerState({
-      currentLevel: 1,
-      currentRep: 1,
-      totalReps: 0,
-      isRunning: false,
-      isPaused: false,
-      timeRemaining: STANDARD_LEVELS[0].interval,
-      workoutStartTime: null,
-      repStartTime: null,
-      pausedTime: 0
-    });
+  const finishStandardWorkout = () => {
+    Alert.alert(
+      "Finish Workout",
+      `Finish workout at Level ${timerState.currentLevel} with ${timerState.totalReps} reps?`,
+      [
+        {
+          text: "Cancel",
+          style: "cancel"
+        },
+        {
+          text: "Finish",
+          style: "default",
+          onPress: async () => {
+            // Stop the timer
+            setTimerState(prev => ({ ...prev, isRunning: false, isPaused: false }));
+            
+            // Save workout data to database
+            if (timerState.workoutStartTime) {
+              try {
+                const workoutDuration = Math.round((Date.now() - timerState.workoutStartTime) / 60000); // minutes
+                const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+                
+                const sessionId = await databaseService.saveWorkout({
+                  date: today,
+                  workout_mode: 'standard',
+                  max_level: timerState.currentLevel,
+                  total_reps: timerState.totalReps,
+                  duration_minutes: workoutDuration,
+                  notes: 'Standard 20m beep test'
+                });
+                
+                setWorkoutSessionId(sessionId);
+              } catch (error) {
+                console.warn('Failed to save workout:', error);
+              }
+            }
+            
+            // Navigate to completion screen
+            setCurrentStep('completion');
+          }
+        }
+      ]
+    );
   };
 
   const goBack = () => {
     router.back();
+  };
+
+  const renderCompletionStep = () => {
+    const workoutDuration = timerState.workoutStartTime 
+      ? Math.round((Date.now() - timerState.workoutStartTime) / 60000) 
+      : 0;
+
+    return (
+      <View style={styles.stepContainer}>
+        <View style={styles.titleWithIcon}>
+          <MaterialIcons name="celebration" size={32} color={MODE_COLORS.STANDARD} />
+          <ThemedText type="title" style={styles.stepTitle}>
+            Workout Complete!
+          </ThemedText>
+        </View>
+        
+        <View style={styles.completionContainer}>
+          <ThemedText type="headline" style={styles.resultText}>
+            Level {timerState.currentLevel} • {timerState.totalReps} total reps
+          </ThemedText>
+          
+          <View style={styles.summaryContainer}>
+            <View style={styles.summaryItem}>
+              <MaterialIcons name="trending-up" size={20} color={MODE_COLORS.STANDARD} />
+              <ThemedText type="body" style={styles.summaryLabel}>Max Level:</ThemedText>
+              <ThemedText type="subtitle" style={styles.summaryValue}>{timerState.currentLevel}</ThemedText>
+            </View>
+            
+            <View style={styles.summaryItem}>
+              <MaterialIcons name="repeat" size={20} color={MODE_COLORS.STANDARD} />
+              <ThemedText type="body" style={styles.summaryLabel}>Total Reps:</ThemedText>
+              <ThemedText type="subtitle" style={styles.summaryValue}>{timerState.totalReps}</ThemedText>
+            </View>
+            
+            <View style={styles.summaryItem}>
+              <MaterialIcons name="schedule" size={20} color={MODE_COLORS.STANDARD} />
+              <ThemedText type="body" style={styles.summaryLabel}>Duration:</ThemedText>
+              <ThemedText type="subtitle" style={styles.summaryValue}>{workoutDuration} min</ThemedText>
+            </View>
+          </View>
+          
+          <Pressable 
+            style={[styles.button, styles.primaryButton, styles.doneButton]}
+            onPress={goBack}
+          >
+            <ThemedText type="button" style={styles.buttonText}>Done</ThemedText>
+          </Pressable>
+        </View>
+      </View>
+    );
   };
 
   // Core timer logic
@@ -200,86 +285,93 @@ export default function StandardTimerScreen() {
           </ThemedText>
         </View>
 
-      {/* Main Timer Display */}
-      <View style={styles.timerDisplay}>
-        <ThemedText type="timerLarge" style={styles.levelText}>
-          Level {timerState.currentLevel}
-        </ThemedText>
-        
-        <ThemedText type="headline" style={styles.repText}>
-          Rep {timerState.currentRep} of {currentLevelConfig?.reps || 0}
-        </ThemedText>
-        
-        <View style={styles.countdownContainer}>
-          <ThemedText type="display" style={styles.countdownText}>
-            {timerState.timeRemaining.toFixed(2)}
-          </ThemedText>
-        </View>
-        
-        <ThemedText type="bodyLarge" style={styles.totalRepsText}>
-          Total Reps: {timerState.totalReps}
-        </ThemedText>
-      </View>
-
-      {/* Progress Bar */}
-      <View style={styles.progressContainer}>
-        <View style={styles.progressBar}>
-          <View 
-            style={[
-              styles.progressFill, 
-              { 
-                width: `${(timerState.currentRep / (currentLevelConfig?.reps || 1)) * 100}%`,
-                backgroundColor: MODE_COLORS.STANDARD
-              }
-            ]} 
-          />
-        </View>
-        <ThemedText type="caption" style={styles.progressText}>
-          {timerState.currentRep} / {currentLevelConfig?.reps || 0} reps
-        </ThemedText>
-      </View>
-
-      {/* Control Buttons */}
-      <View style={styles.controlsContainer}>
-        {!timerState.isRunning ? (
-          <Pressable 
-            style={[styles.button, styles.startButton]} 
-            onPress={startTimer}
-          >
-            <ThemedText type="button" style={styles.buttonText}>Start</ThemedText>
-          </Pressable>
-        ) : (
-          <View style={styles.runningControls}>
-            <Pressable 
-              style={[styles.button, styles.pauseButton]} 
-              onPress={pauseTimer}
-            >
-              <ThemedText type="button" style={styles.buttonText}>
-                {timerState.isPaused ? 'Resume' : 'Pause'}
+        {/* Step Content */}
+        {currentStep === 'timer' && (
+          <>
+            {/* Main Timer Display */}
+            <View style={styles.timerDisplay}>
+              <ThemedText type="timerLarge" style={styles.levelText}>
+                Level {timerState.currentLevel}
               </ThemedText>
-            </Pressable>
-            
-            <Pressable 
-              style={[styles.button, styles.stopButton]} 
-              onPress={stopTimer}
-            >
-              <ThemedText type="button" style={styles.buttonText}>Stop</ThemedText>
-            </Pressable>
-          </View>
-        )}
-      </View>
+              
+              <ThemedText type="headline" style={styles.repText}>
+                Rep {timerState.currentRep} of {currentLevelConfig?.reps || 0}
+              </ThemedText>
+              
+              <View style={styles.countdownContainer}>
+                <ThemedText type="display" style={styles.countdownText}>
+                  {timerState.timeRemaining.toFixed(2)}
+                </ThemedText>
+              </View>
+              
+              <ThemedText type="bodyLarge" style={styles.totalRepsText}>
+                Total Reps: {timerState.totalReps}
+              </ThemedText>
+            </View>
 
-      {/* Standard Mode Info */}
-      <View style={styles.infoContainer}>
-        <View style={styles.infoItem}>
-          <MaterialIcons name="straighten" size={16} color={MODE_COLORS.STANDARD} />
-          <ThemedText type="caption" style={styles.infoText}>Standard 20m shuttle run</ThemedText>
-        </View>
-        <View style={styles.infoItem}>
-          <MaterialIcons name="track-changes" size={16} color={MODE_COLORS.STANDARD} />
-          <ThemedText type="caption" style={styles.infoText}>9 levels • Fixed intervals</ThemedText>
-        </View>
-      </View>
+            {/* Progress Bar */}
+            <View style={styles.progressContainer}>
+              <View style={styles.progressBar}>
+                <View 
+                  style={[
+                    styles.progressFill, 
+                    { 
+                      width: `${(timerState.currentRep / (currentLevelConfig?.reps || 1)) * 100}%`,
+                      backgroundColor: MODE_COLORS.STANDARD
+                    }
+                  ]} 
+                />
+              </View>
+              <ThemedText type="caption" style={styles.progressText}>
+                {timerState.currentRep} / {currentLevelConfig?.reps || 0} reps
+              </ThemedText>
+            </View>
+
+            {/* Control Buttons */}
+            <View style={styles.controlsContainer}>
+              {!timerState.isRunning ? (
+                <Pressable 
+                  style={[styles.button, styles.startButton]} 
+                  onPress={startTimer}
+                >
+                  <ThemedText type="button" style={styles.buttonText}>Start</ThemedText>
+                </Pressable>
+              ) : (
+                <View style={styles.runningControls}>
+                  <Pressable 
+                    style={[styles.button, styles.pauseButton]} 
+                    onPress={pauseTimer}
+                  >
+                    <ThemedText type="button" style={styles.buttonText}>
+                      {timerState.isPaused ? 'Resume' : 'Pause'}
+                    </ThemedText>
+                  </Pressable>
+                  
+                  <Pressable 
+                    style={[styles.button, styles.finishButton]} 
+                    onPress={finishStandardWorkout}
+                  >
+                    <ThemedText type="button" style={styles.buttonText}>Finish</ThemedText>
+                  </Pressable>
+                </View>
+              )}
+            </View>
+
+            {/* Standard Mode Info */}
+            <View style={styles.infoContainer}>
+              <View style={styles.infoItem}>
+                <MaterialIcons name="straighten" size={16} color={MODE_COLORS.STANDARD} />
+                <ThemedText type="caption" style={styles.infoText}>Standard 20m shuttle run</ThemedText>
+              </View>
+              <View style={styles.infoItem}>
+                <MaterialIcons name="track-changes" size={16} color={MODE_COLORS.STANDARD} />
+                <ThemedText type="caption" style={styles.infoText}>9 levels • Fixed intervals</ThemedText>
+              </View>
+            </View>
+          </>
+        )}
+        
+        {currentStep === 'completion' && renderCompletionStep()}
       </ScrollView>
     </ThemedView>
   );
@@ -409,6 +501,14 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
+  finishButton: {
+    backgroundColor: '#4CAF50', // Green color for positive action
+    shadowColor: '#4CAF50',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
   buttonText: {
     color: 'white',
     textAlign: 'center',
@@ -429,5 +529,60 @@ const styles = StyleSheet.create({
   progressText: {
     opacity: 0.6,
     textAlign: 'center',
+  },
+  stepContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 20,
+    minHeight: 400,
+  },
+  titleWithIcon: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 32,
+  },
+  stepTitle: {
+    textAlign: 'center',
+    color: MODE_COLORS.STANDARD,
+  },
+  completionContainer: {
+    alignItems: 'center',
+    width: '100%',
+    paddingHorizontal: 20,
+  },
+  resultText: {
+    marginBottom: 32,
+    textAlign: 'center',
+    color: MODE_COLORS.STANDARD,
+  },
+  summaryContainer: {
+    backgroundColor: '#f5f5f5',
+    borderRadius: 12,
+    padding: 24,
+    marginBottom: 32,
+    width: '100%',
+    gap: 16,
+  },
+  summaryItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  summaryLabel: {
+    flex: 1,
+    opacity: 0.8,
+  },
+  summaryValue: {
+    color: MODE_COLORS.STANDARD,
+    fontWeight: '600',
+  },
+  doneButton: {
+    backgroundColor: MODE_COLORS.STANDARD,
+    marginTop: 16,
+  },
+  primaryButton: {
+    backgroundColor: MODE_COLORS.STANDARD,
   },
 });
