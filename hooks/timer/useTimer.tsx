@@ -275,7 +275,7 @@ export function useTimer({
           // No significant change, don't update state
           return prev;
         });
-      }, 20); // Update every 20ms for smooth countdown
+      }, 33); // Update every 33ms for 30 FPS countdown
     }
     
     return () => {

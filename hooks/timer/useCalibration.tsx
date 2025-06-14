@@ -82,7 +82,7 @@ export function useCalibration(): UseCalibrationReturn {
       interval = setInterval(() => {
         const elapsed = (Date.now() - calibrationState.measureStartTime!) / 1000;
         setCurrentMeasurementTime(elapsed);
-      }, 20); // Update every 20ms for smooth timer display
+      }, 33); // Update every 33ms for 30 FPS timer display
     }
     
     return () => {
