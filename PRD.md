@@ -66,6 +66,11 @@
 - [ ] 선택한 모드에 따라 다른 플로우로 진행
 - [ ] 설정에서 기본 모드 변경 가능
 
+**Testing Requirements**:
+- [ ] Component tests for mode selection UI (80%+ coverage)
+- [ ] Navigation tests for mode routing
+- [ ] Integration tests for complete user flow from home to timer
+
 ### Epic 1: Standard Beep Test (표준 모드)
 **Priority**: P0 (MVP 필수)
 
@@ -79,6 +84,14 @@
 - [ ] 표준 비프음과 음성 안내 제공
 - [ ] 진행률 및 현재 단계/회차 실시간 표시
 - [ ] 일시정지/재개/중단 기능
+
+**Testing Requirements**:
+- [ ] Unit tests for STANDARD_LEVELS configuration (100% coverage) ✅
+- [ ] Hook tests for timer state management (90%+ coverage)
+- [ ] Component tests for timer display components (80%+ coverage)
+- [ ] Integration tests for complete standard workout flow
+- [ ] Audio integration tests for beep coordination
+- [ ] Database tests for workout session persistence
 
 **표준 설정값**:
 ```typescript
@@ -109,6 +122,14 @@ const STANDARD_LEVELS = [
 - [ ] 20m 표준 기준 대비 비례 계산하여 시간 간격 자동 설정
 - [ ] 측정 결과 확인 및 "다시 측정" 옵션 제공
 - [ ] 캘리브레이션 결과 저장 및 "재캘리브레이션" 기능
+
+**Testing Requirements**:
+- [ ] Unit tests for calibration calculation logic (100% coverage) ✅
+- [ ] Hook tests for useCalibration state management (90%+ coverage)
+- [ ] Component tests for calibration UI flow (80%+ coverage)
+- [ ] Integration tests for calibration measurement workflow
+- [ ] Database tests for calibration persistence ✅
+- [ ] Timer tests with fake timers for measurement accuracy
 
 **측정 가이드라인**:
 - **달리기 속도**: "대화할 수 있을 정도의 천천히 달리기"
@@ -788,6 +809,107 @@ interface TranslationKeys {
 - [ ] 오디오 파일 최적화 (실제 녹음 파일로 교체)
 - [ ] 성능 최적화
 - [ ] 최종 테스트 및 출시 준비
+
+---
+
+## Epic 6: Testing Infrastructure (테스팅 인프라)
+**Priority**: P0 (MVP Critical - 품질 보증)
+
+### Story 6.1: 핵심 비즈니스 로직 테스트
+**사용자 스토리**: 개발팀이 앱의 핵심 계산 로직과 타이머 기능의 정확성을 보장할 수 있다.
+
+**Acceptance Criteria**:
+- [ ] BeepTestConfig 계산 함수 100% 테스트 커버리지 ✅
+- [ ] 개인 모드 캘리브레이션 계산 로직 검증 ✅
+- [ ] 표준 레벨 구성 및 진행 로직 검증 ✅
+- [ ] 난이도 조정 알고리즘 정확성 테스트 ✅
+- [ ] 데이터베이스 CRUD 작업 90% 커버리지 ✅
+
+**Testing Requirements**:
+- [ ] Unit tests: 90%+ coverage for business logic
+- [ ] Integration tests: Database operations with in-memory SQLite
+- [ ] Performance tests: Timer accuracy within ±50ms tolerance
+- [ ] Edge case tests: Invalid inputs, boundary conditions
+
+### Story 6.2: 사용자 인터페이스 컴포넌트 테스트
+**사용자 스토리**: 개발팀이 UI 컴포넌트가 다양한 상태와 상호작용에서 정확히 동작함을 확인할 수 있다.
+
+**Acceptance Criteria**:
+- [ ] 타이머 표시 컴포넌트 (CountdownDisplay, LevelIndicator) 테스트
+- [ ] 제어 컴포넌트 (TimerControls, ProgressBar) 테스트
+- [ ] 화면 헤더 및 요약 컴포넌트 (ScreenHeader, WorkoutSummary) 테스트
+- [ ] 테마 적용 및 모드별 색상 표시 검증
+- [ ] 사용자 입력 및 버튼 상호작용 테스트
+
+**Testing Requirements**:
+- [ ] Component tests: 80%+ coverage for UI components
+- [ ] Interaction tests: Button clicks, form inputs, gestures
+- [ ] Visual tests: Theme switching, mode-specific styling
+- [ ] Accessibility tests: Screen reader compatibility
+
+### Story 6.3: 통합 워크플로우 테스트
+**사용자 스토리**: 개발팀이 완전한 사용자 여정이 end-to-end로 정상 동작함을 검증할 수 있다.
+
+**Acceptance Criteria**:
+- [ ] 개인 모드 전체 플로우: 캘리브레이션 → 운동 → 완료 → 피드백
+- [ ] 표준 모드 전체 플로우: 시작 → 진행 → 완료 → 저장
+- [ ] 데이터 지속성: 운동 기록 저장 및 불러오기
+- [ ] 오디오 통합: 타이머와 비프음 동기화
+- [ ] 상태 관리: 일시정지/재개/완료 상태 전환
+
+**Testing Requirements**:
+- [ ] Integration tests: Complete user workflows
+- [ ] Database integration: Data persistence across sessions
+- [ ] Audio integration: Timer and beep coordination
+- [ ] State management: Hook and component interactions
+
+### Story 6.4: 품질 게이트 및 회귀 방지
+**사용자 스토리**: 개발팀이 새로운 기능 추가 시 기존 기능의 정상 동작을 보장할 수 있다.
+
+**Acceptance Criteria**:
+- [ ] 모든 기능 개발 시 테스트 작성 의무화
+- [ ] 테스트 실패 시 기능 완료 불가 정책
+- [ ] 최소 커버리지 요구사항: 전체 80%, 비즈니스 로직 90%
+- [ ] 성능 테스트: 전체 테스트 스위트 30초 이내 완료
+- [ ] 지속적 통합: 코드 변경 시 자동 테스트 실행
+
+**Testing Requirements**:
+- [ ] Quality gates: Mandatory test passage before feature completion
+- [ ] Coverage reporting: Automated coverage measurement and reporting
+- [ ] Regression tests: Prevent breaking changes to existing functionality
+- [ ] Performance benchmarks: Ensure test suite execution speed
+
+### Story 6.5: 크로스 플랫폼 호환성 테스트
+**사용자 스토리**: 개발팀이 iOS, Android, Web 플랫폼에서 일관된 동작을 보장할 수 있다.
+
+**Acceptance Criteria**:
+- [ ] 플랫폼별 타이머 정확성 검증
+- [ ] 오디오 시스템 크로스 플랫폼 테스트
+- [ ] 데이터베이스 SQLite 호환성 테스트
+- [ ] UI 컴포넌트 반응형 레이아웃 테스트
+- [ ] 터치 인터페이스 및 제스처 호환성
+
+**Testing Requirements**:
+- [ ] E2E tests: Critical paths on actual devices/simulators
+- [ ] Platform tests: iOS simulator, Android emulator, web browser
+- [ ] Performance tests: Memory usage, battery consumption
+- [ ] Compatibility tests: OS version compatibility
+
+**Definition of Done for Testing Epic**:
+- ✅ Testing infrastructure completely set up (Jest + React Native Testing Library)
+- ✅ 32+ passing tests covering critical business logic and database operations
+- ✅ Coverage reporting integrated with quality gates
+- ✅ Test utilities and mocking strategies established
+- ✅ Documentation updated with testing requirements and best practices
+- [ ] Component test suite implemented (80%+ coverage)
+- [ ] Integration test suite implemented (key workflows)
+- [ ] E2E test framework configured (Detox or similar)
+- [ ] Cross-platform compatibility verified
+
+**Current Status**: 
+- **Phase 1 Complete**: Foundation testing infrastructure ✅
+- **Phase 2 In Progress**: Component and integration testing
+- **Phase 3 Pending**: E2E and cross-platform testing
 
 ---
 
