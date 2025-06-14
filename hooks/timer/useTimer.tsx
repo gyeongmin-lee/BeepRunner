@@ -264,11 +264,16 @@ export function useTimer({
             };
           }
           
-          // Update display with accurate time remaining
-          return {
-            ...prev,
-            timeRemaining
-          };
+          // Update display with accurate time remaining (only if changed significantly)
+          if (Math.abs(prev.timeRemaining - timeRemaining) >= 0.01) {
+            return {
+              ...prev,
+              timeRemaining
+            };
+          }
+          
+          // No significant change, don't update state
+          return prev;
         });
       }, 20); // Update every 20ms for smooth countdown
     }

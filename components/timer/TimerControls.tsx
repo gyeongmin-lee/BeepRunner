@@ -12,7 +12,7 @@ interface TimerControlsProps {
   mode: 'personal' | 'standard';
 }
 
-export function TimerControls({ 
+export const TimerControls = React.memo(function TimerControls({ 
   isRunning, 
   isPaused, 
   onStart, 
@@ -20,7 +20,10 @@ export function TimerControls({
   onFinish, 
   mode 
 }: TimerControlsProps) {
-  const modeColor = mode === 'personal' ? MODE_COLORS.PERSONAL : MODE_COLORS.STANDARD;
+  const modeColor = React.useMemo(() => 
+    mode === 'personal' ? MODE_COLORS.PERSONAL : MODE_COLORS.STANDARD,
+    [mode]
+  );
 
   return (
     <View style={styles.container}>
@@ -52,7 +55,7 @@ export function TimerControls({
       )}
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   container: {

@@ -32,6 +32,11 @@ export default function PersonalTimerScreen() {
     resetCalibration
   } = useCalibration();
 
+  // Memoize expensive personal intervals calculation
+  const personalLevelConfigs = React.useMemo(() => {
+    return calibrationState.measuredTime ? calculatePersonalIntervals(calibrationState.measuredTime) : [];
+  }, [calibrationState.measuredTime]);
+
   // Timer hook - will be initialized after calibration
   const {
     timerState,
@@ -41,7 +46,7 @@ export default function PersonalTimerScreen() {
     finishWorkout
   } = useTimer({
     mode: 'personal',
-    levelConfigs: calibrationState.measuredTime ? calculatePersonalIntervals(calibrationState.measuredTime) : [],
+    levelConfigs: personalLevelConfigs,
     onWorkoutComplete: () => setCurrentStep('feedback'),
     workoutNotes: 'Personal calibration'
   });
@@ -366,8 +371,7 @@ export default function PersonalTimerScreen() {
   const renderTimerStep = () => {
     if (!timerState || !calibrationState.measuredTime) return null;
     
-    const personalLevels = calculatePersonalIntervals(calibrationState.measuredTime);
-    const currentLevelConfig = personalLevels[timerState.currentLevel - 1];
+    const currentLevelConfig = personalLevelConfigs[timerState.currentLevel - 1];
     
     return (
       <View style={styles.stepContainer}>

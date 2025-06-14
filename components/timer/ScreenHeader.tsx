@@ -10,8 +10,11 @@ interface ScreenHeaderProps {
   onBack: () => void;
 }
 
-export function ScreenHeader({ title, mode, onBack }: ScreenHeaderProps) {
-  const modeColor = mode === 'personal' ? MODE_COLORS.PERSONAL : MODE_COLORS.STANDARD;
+export const ScreenHeader = React.memo(function ScreenHeader({ title, mode, onBack }: ScreenHeaderProps) {
+  const modeColor = React.useMemo(() => 
+    mode === 'personal' ? MODE_COLORS.PERSONAL : MODE_COLORS.STANDARD,
+    [mode]
+  );
 
   return (
     <View style={styles.header}>
@@ -23,7 +26,7 @@ export function ScreenHeader({ title, mode, onBack }: ScreenHeaderProps) {
       </ThemedText>
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   header: {

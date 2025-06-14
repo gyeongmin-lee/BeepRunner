@@ -12,14 +12,17 @@ interface WorkoutSummaryProps {
   mode: 'personal' | 'standard';
 }
 
-export function WorkoutSummary({ 
+export const WorkoutSummary = React.memo(function WorkoutSummary({ 
   level, 
   totalReps, 
   duration, 
   onDone, 
   mode 
 }: WorkoutSummaryProps) {
-  const modeColor = mode === 'personal' ? MODE_COLORS.PERSONAL : MODE_COLORS.STANDARD;
+  const modeColor = React.useMemo(() => 
+    mode === 'personal' ? MODE_COLORS.PERSONAL : MODE_COLORS.STANDARD,
+    [mode]
+  );
 
   return (
     <View style={styles.stepContainer}>
@@ -66,7 +69,7 @@ export function WorkoutSummary({
       </View>
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   stepContainer: {

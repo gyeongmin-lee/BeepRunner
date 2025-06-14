@@ -11,14 +11,17 @@ interface CountdownDisplayProps {
   mode: 'personal' | 'standard';
 }
 
-export function CountdownDisplay({ 
+export const CountdownDisplay = React.memo(function CountdownDisplay({ 
   timeRemaining, 
   currentRep, 
   totalReps, 
   maxReps, 
   mode 
 }: CountdownDisplayProps) {
-  const modeColor = mode === 'personal' ? MODE_COLORS.PERSONAL : MODE_COLORS.STANDARD;
+  const modeColor = React.useMemo(() => 
+    mode === 'personal' ? MODE_COLORS.PERSONAL : MODE_COLORS.STANDARD,
+    [mode]
+  );
 
   return (
     <View style={styles.container}>
@@ -37,7 +40,7 @@ export function CountdownDisplay({
       </ThemedText>
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   container: {

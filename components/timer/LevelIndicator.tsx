@@ -8,15 +8,18 @@ interface LevelIndicatorProps {
   mode: 'personal' | 'standard';
 }
 
-export function LevelIndicator({ level, mode }: LevelIndicatorProps) {
-  const modeColor = mode === 'personal' ? MODE_COLORS.PERSONAL : MODE_COLORS.STANDARD;
+export const LevelIndicator = React.memo(function LevelIndicator({ level, mode }: LevelIndicatorProps) {
+  const modeColor = React.useMemo(() => 
+    mode === 'personal' ? MODE_COLORS.PERSONAL : MODE_COLORS.STANDARD,
+    [mode]
+  );
 
   return (
     <ThemedText type="timerLarge" style={[styles.levelText, { color: modeColor }]}>
       Level {level}
     </ThemedText>
   );
-}
+});
 
 const styles = StyleSheet.create({
   levelText: {

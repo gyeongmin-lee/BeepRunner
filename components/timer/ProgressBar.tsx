@@ -9,10 +9,19 @@ interface ProgressBarProps {
   mode: 'personal' | 'standard';
 }
 
-export function ProgressBar({ current, total, mode }: ProgressBarProps) {
-  const modeColor = mode === 'personal' ? MODE_COLORS.PERSONAL : MODE_COLORS.STANDARD;
-  const modeTintColor = mode === 'personal' ? MODE_COLORS.PERSONAL_TINT : '#e8f5e8';
-  const progressPercentage = total > 0 ? (current / total) * 100 : 0;
+export const ProgressBar = React.memo(function ProgressBar({ current, total, mode }: ProgressBarProps) {
+  const modeColor = React.useMemo(() => 
+    mode === 'personal' ? MODE_COLORS.PERSONAL : MODE_COLORS.STANDARD,
+    [mode]
+  );
+  const modeTintColor = React.useMemo(() => 
+    mode === 'personal' ? MODE_COLORS.PERSONAL_TINT : '#e8f5e8',
+    [mode]
+  );
+  const progressPercentage = React.useMemo(() => 
+    total > 0 ? (current / total) * 100 : 0,
+    [current, total]
+  );
 
   return (
     <View style={styles.container}>
@@ -32,7 +41,7 @@ export function ProgressBar({ current, total, mode }: ProgressBarProps) {
       </ThemedText>
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   container: {
