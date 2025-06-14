@@ -110,41 +110,28 @@ export function AudioProvider({ children }: AudioProviderProps) {
   const completeSource2 = arrayBufferToBase64(generateBeepBuffer(1000, 200));
   const completeSource3 = arrayBufferToBase64(generateBeepBuffer(1200, 200));
 
-  // Create audio players with error handling for MP3 files
-  let beepPlayer: ReturnType<typeof useAudioPlayer> | null = null;
-  let levelUpPlayer: ReturnType<typeof useAudioPlayer> | null = null;
-  
-  try {
-    beepPlayer = useAudioPlayer(repBeepSource);
-  } catch (error) {
-    console.warn('Failed to load rep_beep.mp3:', error);
-  }
-  
-  try {
-    levelUpPlayer = useAudioPlayer(levelBeepSource);
-  } catch (error) {
-    console.warn('Failed to load level_beep.mp3:', error);
-  }
-  
+  // Create audio players - hooks must be called unconditionally
+  const beepPlayer = useAudioPlayer(repBeepSource);
+  const levelUpPlayer = useAudioPlayer(levelBeepSource);
   const countdownPlayer = useAudioPlayer(countdownSource);
   const completePlayer1 = useAudioPlayer(completeSource1);
   const completePlayer2 = useAudioPlayer(completeSource2);
   const completePlayer3 = useAudioPlayer(completeSource3);
 
-  // Status tracking for cleanup (with null checks for MP3 players)
-  const beepStatus = beepPlayer ? useAudioPlayerStatus(beepPlayer) : null;
+  // Status tracking for cleanup
+  const beepStatus = useAudioPlayerStatus(beepPlayer);
   const countdownStatus = useAudioPlayerStatus(countdownPlayer);
-  const levelUpStatus = levelUpPlayer ? useAudioPlayerStatus(levelUpPlayer) : null;
+  const levelUpStatus = useAudioPlayerStatus(levelUpPlayer);
   const complete1Status = useAudioPlayerStatus(completePlayer1);
   const complete2Status = useAudioPlayerStatus(completePlayer2);
   const complete3Status = useAudioPlayerStatus(completePlayer3);
 
   // Reset players when they finish
   useEffect(() => {
-    if (beepStatus?.didJustFinish && beepPlayer) {
+    if (beepStatus.didJustFinish) {
       beepPlayer.seekTo(0);
     }
-  }, [beepStatus?.didJustFinish, beepPlayer]);
+  }, [beepStatus.didJustFinish, beepPlayer]);
 
   useEffect(() => {
     if (countdownStatus.didJustFinish) {
@@ -153,10 +140,10 @@ export function AudioProvider({ children }: AudioProviderProps) {
   }, [countdownStatus.didJustFinish, countdownPlayer]);
 
   useEffect(() => {
-    if (levelUpStatus?.didJustFinish && levelUpPlayer) {
+    if (levelUpStatus.didJustFinish) {
       levelUpPlayer.seekTo(0);
     }
-  }, [levelUpStatus?.didJustFinish, levelUpPlayer]);
+  }, [levelUpStatus.didJustFinish, levelUpPlayer]);
 
   useEffect(() => {
     if (complete1Status.didJustFinish) {
@@ -190,7 +177,6 @@ export function AudioProvider({ children }: AudioProviderProps) {
   }, []);
 
   const playBeep = useCallback(() => {
-    if (!beepPlayer) return; // Silent failure if MP3 didn't load
     try {
       beepPlayer.play();
     } catch (error) {
@@ -207,7 +193,6 @@ export function AudioProvider({ children }: AudioProviderProps) {
   }, [countdownPlayer]);
 
   const playStart = useCallback(async () => {
-    if (!beepPlayer) return; // Silent failure if MP3 didn't load
     try {
       // Start signal: two quick beeps
       beepPlayer.play();
@@ -220,7 +205,6 @@ export function AudioProvider({ children }: AudioProviderProps) {
   }, [beepPlayer]);
 
   const playLevelUp = useCallback(() => {
-    if (!levelUpPlayer) return; // Silent failure if MP3 didn't load
     try {
       levelUpPlayer.play();
     } catch (error) {
