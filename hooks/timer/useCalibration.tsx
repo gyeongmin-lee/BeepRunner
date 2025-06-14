@@ -72,7 +72,7 @@ export function useCalibration(): UseCalibrationReturn {
 
       return () => clearInterval(timer);
     }
-  }, [calibrationState.isCountingDown, calibrationState.countdownNumber, audio]);
+  }, [calibrationState.isCountingDown, calibrationState.countdownNumber, audio, startMeasurement]);
 
   // Measurement timer effect
   useEffect(() => {
