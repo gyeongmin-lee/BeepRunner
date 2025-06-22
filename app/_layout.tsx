@@ -37,6 +37,7 @@ export default function RootLayout() {
           <Stack.Screen name="index" options={{ headerShown: false }} />
           <Stack.Screen name="standard-timer" options={{ headerShown: false }} />
           <Stack.Screen name="personal-timer" options={{ headerShown: false }} />
+          <Stack.Screen name="workout-history" options={{ headerShown: false }} />
           <Stack.Screen name="+not-found" />
         </Stack>
         <StatusBar style="dark" />

@@ -272,6 +272,26 @@ class DatabaseService {
     return result || null;
   }
 
+  /**
+   * Delete a workout session
+   */
+  async deleteWorkout(workoutId: number): Promise<void> {
+    await this.ensureInitialized();
+    if (!this.db) throw new Error('Database not available');
+
+    // First delete any associated calibration suggestions
+    await this.db.runAsync(
+      `DELETE FROM calibration_suggestions WHERE workout_session_id = ?`,
+      [workoutId]
+    );
+
+    // Then delete the workout session
+    await this.db.runAsync(
+      `DELETE FROM workout_sessions WHERE id = ?`,
+      [workoutId]
+    );
+  }
+
   // CALIBRATION SUGGESTIONS
 
   /**

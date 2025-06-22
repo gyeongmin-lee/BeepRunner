@@ -18,8 +18,7 @@ export default function HomeScreen() {
   };
 
   const navigateToHistory = () => {
-    // Placeholder for now
-    console.log('Navigate to history');
+    router.push('/workout-history');
   };
 
   const navigateToSettings = () => {
